@@ -97,7 +97,9 @@ program
     }
 
     const config: Config = {
-      platforms: [platform],
+      platforms: configExists
+        ? [...new Set([...existingConfig.platforms, platform])]
+        : [platform],
       aiProvider: 'openai',
       model,
       lang,
@@ -106,10 +108,6 @@ program
         openai: { apiKey: 'env:OPENAI_API_KEY', model },
       },
     };
-
-    if (!config.platforms.includes(platform)) {
-      config.platforms.push(platform);
-    }
 
     const mrDescribeDir = resolve(cwd, '.mr-describe', platform);
     mkdirSync(mrDescribeDir, { recursive: true });
