@@ -1,5 +1,6 @@
 import axios from 'axios';
 import type { PRInfo, AIProviderInterface } from '../types.js';
+import { buildUserPrompt, buildSystemMessage } from '../prompts.js';
 
 interface PRFile {
   filename: string;
@@ -92,23 +93,10 @@ export class GitHubGenerator {
       return;
     }
 
-    const prompt = `Kamu adalah asisten yang membantu developer mengisi deskripsi Pull Request secara otomatis.
+    const prompt = buildUserPrompt('pr', prInfo.title, this.template);
+    const systemMessage = buildSystemMessage('pr');
 
-Tugasmu adalah menganalisis git diff berikut dan mengisi template PR dengan tepat.
-
-Aturan:
-- Gunakan bahasa Indonesia
-- Isi setiap section berdasarkan perubahan nyata di diff
-- Jika tidak ada perubahan untuk suatu section, tulis hanya tanda "-"
-- Untuk section Testing, tambahkan checklist spesifik berdasarkan perubahan
-- Kembalikan HANYA template yang sudah diisi, tanpa penjelasan tambahan
-
-Judul PR: "${prInfo.title}"
-
-TEMPLATE YANG HARUS DIISI:
-${this.template}`;
-
-    const description = await this.aiProvider.generate(prompt, diff);
+    const description = await this.aiProvider.generate(prompt, diff, systemMessage);
     await this.updatePRDescription(description);
 
     console.log(`[PR Generator] ✓ Deskripsi PR berhasil diupdate!`);

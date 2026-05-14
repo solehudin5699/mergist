@@ -3,8 +3,9 @@
 import { Command } from 'commander';
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { resolve } from 'path';
-import { loadConfig, saveConfig, addPlatform } from './config.js';
+import { loadConfig, saveConfig } from './config.js';
 import { defaultTemplate, githubTemplate } from './templates/default.js';
+import { buildSystemMessage, PROMPT_TEMPLATE } from './prompts.js';
 import { GitLabGenerator } from './generators/gitlab.js';
 import { GitHubGenerator } from './generators/github.js';
 import { OpenAIProvider } from './providers/openai.js';
@@ -54,34 +55,22 @@ program
     mkdirSync(mrDescribeDir, { recursive: true });
 
     if (platform === 'gitlab') {
-      writeFileSync(
-        resolve(mrDescribeDir, 'generate-mr-desc.js'),
-        generateGitLabScript(config)
-      );
-      writeFileSync(
-        resolve(cwd, '.gitlab-ci.yml'),
-        generateGitLabCI()
-      );
+      writeFileSync(resolve(mrDescribeDir, 'generate-mr-desc.js'), generateGitLabScript(config));
+      writeFileSync(resolve(cwd, '.gitlab-ci.yml'), generateGitLabCI());
       mkdirSync(resolve(cwd, '.gitlab', 'merge_request_templates'), { recursive: true });
       writeFileSync(
         resolve(cwd, '.gitlab', 'merge_request_templates', 'Default.md'),
-        defaultTemplate
+        defaultTemplate,
       );
     } else if (platform === 'github') {
-      writeFileSync(
-        resolve(mrDescribeDir, 'generate-pr-desc.js'),
-        generateGitHubScript(config)
-      );
+      writeFileSync(resolve(mrDescribeDir, 'generate-pr-desc.js'), generateGitHubScript(config));
       mkdirSync(resolve(cwd, '.github', 'workflows'), { recursive: true });
       writeFileSync(
         resolve(cwd, '.github', 'workflows', 'mr-describe.yml'),
-        generateGitHubWorkflow()
+        generateGitHubWorkflow(),
       );
       mkdirSync(resolve(cwd, '.github'), { recursive: true });
-      writeFileSync(
-        resolve(cwd, '.github', 'PULL_REQUEST_TEMPLATE.md'),
-        githubTemplate
-      );
+      writeFileSync(resolve(cwd, '.github', 'PULL_REQUEST_TEMPLATE.md'), githubTemplate);
     }
 
     saveConfig(config, cwd);
@@ -118,7 +107,9 @@ program
       const baseUrl = process.env.GITLAB_API_V4_URL || 'https://gitlab.com/api/v4';
 
       if (!token || !projectId || !mrIid) {
-        console.error('❌ Missing required CI variables (GITLAB_TOKEN, CI_PROJECT_ID, CI_MERGE_REQUEST_IID)');
+        console.error(
+          '❌ Missing required CI variables (GITLAB_TOKEN, CI_PROJECT_ID, CI_MERGE_REQUEST_IID)',
+        );
         process.exit(1);
       }
 
@@ -132,18 +123,26 @@ program
       const prNumber = process.env.GITHUB_PR_NUMBER;
 
       if (!token || !owner || !repo || !prNumber) {
-        console.error('❌ Missing required CI variables (GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_PR_NUMBER)');
+        console.error(
+          '❌ Missing required CI variables (GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_PR_NUMBER)',
+        );
         process.exit(1);
       }
 
-      const generator = new GitHubGenerator(token, owner, repo, prNumber, 'https://api.github.com', provider, template);
+      const generator = new GitHubGenerator(
+        token,
+        owner,
+        repo,
+        prNumber,
+        'https://api.github.com',
+        provider,
+        template,
+      );
       await generator.generate();
     }
   });
 
-const configCmd = program
-  .command('config')
-  .description('Show or edit configuration');
+const configCmd = program.command('config').description('Show or edit configuration');
 
 configCmd
   .command('show')
@@ -175,8 +174,8 @@ configCmd
     const config = loadConfig();
 
     if (key === 'platforms') {
-      const platforms = value.split(',').map(p => p.trim()) as Platform[];
-      config.platforms = platforms.filter(p => p === 'gitlab' || p === 'github');
+      const platforms = value.split(',').map((p) => p.trim()) as Platform[];
+      config.platforms = platforms.filter((p) => p === 'gitlab' || p === 'github');
     } else if (key === 'model') {
       config.model = value;
     } else if (key === 'maxDiffChars') {
@@ -212,6 +211,11 @@ function getApiKey(config: Config): string | null {
 }
 
 function generateGitLabScript(config: Config): string {
+  const systemMessage = buildSystemMessage('mr');
+  const generatedPrompt = PROMPT_TEMPLATE.replace(/__LABEL__/g, 'MR')
+    .replace('__TITLE__', '${mrInfo.title}')
+    .replace('__TEMPLATE__', '${TEMPLATE}');
+
   return `/**
  * generate-mr-desc.js
  * Auto-generate GitLab MR description using OpenAI
@@ -223,6 +227,7 @@ const { GITLAB_TOKEN, CI_PROJECT_ID, CI_MERGE_REQUEST_IID, GITLAB_API_V4_URL, OP
 
 const MODEL = '${config.model}';
 const MAX_DIFF_CHARS = ${config.maxDiffChars};
+const SYSTEM_MESSAGE = ${JSON.stringify(systemMessage)};
 
 const TEMPLATE = \`${defaultTemplate.replace(/`/g, '\\`')}\`;
 
@@ -271,7 +276,7 @@ async function callAI(prompt, diff) {
   const res = await httpRequest('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': \`Bearer \${OPENAI_API_KEY}\` }
-  }, { model: MODEL, max_tokens: 1000, messages: [{ role: 'system', content: 'Kamu adalah asisten yang membantu developer mengisi deskripsi MR.' }, { role: 'user', content: prompt + '\\n\\nGIT DIFF:\\n' + diff.slice(0, MAX_DIFF_CHARS) }] });
+  }, { model: MODEL, max_tokens: 1000, messages: [{ role: 'system', content: SYSTEM_MESSAGE }, { role: 'user', content: prompt + '\\n\\nGIT DIFF:\\n' + diff.slice(0, MAX_DIFF_CHARS) }] });
   if (res.status !== 200) throw new Error(\`AI error (HTTP \${res.status})\`);
   return res.body.choices[0]?.message?.content?.trim() || '';
 }
@@ -282,7 +287,7 @@ async function main() {
   if (mrInfo.description?.trim()) { console.log('[MR Generator] Deskripsi sudah ada, dilewati.'); return; }
   const diff = await getMRDiff();
   if (!diff.trim()) { console.log('[MR Generator] Tidak ada diff, dilewati.'); return; }
-  const prompt = \`Kamu adalah asisten yang membantu mengisi deskripsi MR. Gunakan bahasa Indonesia. Isi template berikut:\\n\\n\${TEMPLATE}\\n\\nJudul MR: "\${mrInfo.title}"\`;
+  const prompt = \`${generatedPrompt}\`;
   const desc = await callAI(prompt, diff);
   await updateMRDescription(desc);
   console.log('[MR Generator] ✓ Deskripsi berhasil diupdate!');
@@ -310,6 +315,11 @@ generate-mr-description:
 }
 
 function generateGitHubScript(config: Config): string {
+  const systemMessage = buildSystemMessage('pr');
+  const generatedPrompt = PROMPT_TEMPLATE.replace(/__LABEL__/g, 'PR')
+    .replace('__TITLE__', '${prInfo.title}')
+    .replace('__TEMPLATE__', '${TEMPLATE}');
+
   return `/**
  * generate-pr-desc.js
  * Auto-generate GitHub PR description using OpenAI
@@ -322,6 +332,7 @@ const [OWNER, REPO] = GITHUB_REPOSITORY.split('/');
 
 const MODEL = '${config.model}';
 const MAX_DIFF_CHARS = ${config.maxDiffChars};
+const SYSTEM_MESSAGE = ${JSON.stringify(systemMessage)};
 
 const TEMPLATE = \`${githubTemplate.replace(/`/g, '\\`')}\`;
 
@@ -371,7 +382,7 @@ async function callAI(prompt, diff) {
   const res = await httpRequest('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': \`Bearer \${OPENAI_API_KEY}\` }
-  }, { model: MODEL, max_tokens: 1000, messages: [{ role: 'system', content: 'Kamu adalah asisten yang membantu developer mengisi deskripsi PR.' }, { role: 'user', content: prompt + '\\n\\nGIT DIFF:\\n' + diff.slice(0, MAX_DIFF_CHARS) }] });
+  }, { model: MODEL, max_tokens: 1000, messages: [{ role: 'system', content: SYSTEM_MESSAGE }, { role: 'user', content: prompt + '\\n\\nGIT DIFF:\\n' + diff.slice(0, MAX_DIFF_CHARS) }] });
   if (res.status !== 200) throw new Error(\`AI error (HTTP \${res.status})\`);
   return res.body.choices[0]?.message?.content?.trim() || '';
 }
@@ -382,7 +393,7 @@ async function main() {
   if (prInfo.body?.trim()) { console.log('[PR Generator] Deskripsi sudah ada, dilewati.'); return; }
   const diff = await getPRDiff();
   if (!diff.trim()) { console.log('[PR Generator] Tidak ada diff, dilewati.'); return; }
-  const prompt = \`Kamu adalah asisten yang membantu mengisi deskripsi PR. Gunakan bahasa Indonesia. Isi template berikut:\\n\\n\${TEMPLATE}\\n\\nJudul PR: "\${prInfo.title}"\`;
+  const prompt = \`${generatedPrompt}\`;
   const desc = await callAI(prompt, diff);
   await updatePRDescription(desc);
   console.log('[PR Generator] ✓ Deskripsi berhasil diupdate!');

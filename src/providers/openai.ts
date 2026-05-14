@@ -11,7 +11,7 @@ export class OpenAIProvider implements AIProviderInterface {
     this.model = model;
   }
 
-  async generate(prompt: string, diff: string): Promise<string> {
+  async generate(prompt: string, diff: string, systemMessage?: string): Promise<string> {
     const response = await axios.post(
       'https://api.openai.com/v1/chat/completions',
       {
@@ -20,7 +20,7 @@ export class OpenAIProvider implements AIProviderInterface {
         messages: [
           {
             role: 'system',
-            content: 'Kamu adalah asisten yang membantu developer mengisi deskripsi Merge Request secara otomatis.',
+            content: systemMessage || 'Kamu adalah asisten yang membantu developer mengisi deskripsi Merge Request secara otomatis.',
           },
           {
             role: 'user',

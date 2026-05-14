@@ -62,5 +62,5 @@ export interface DiffFile {
 }
 
 export interface AIProviderInterface {
-  generate(prompt: string, diff: string): Promise<string>;
+  generate(prompt: string, diff: string, systemMessage?: string): Promise<string>;
 }

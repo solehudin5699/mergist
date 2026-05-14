@@ -1,5 +1,6 @@
 import axios from 'axios';
 import type { MRInfo, DiffFile, AIProviderInterface } from '../types.js';
+import { buildUserPrompt, buildSystemMessage } from '../prompts.js';
 
 export class GitLabGenerator {
   private token: string;
@@ -76,23 +77,10 @@ export class GitLabGenerator {
       return;
     }
 
-    const prompt = `Kamu adalah asisten yang membantu developer mengisi deskripsi Merge Request secara otomatis.
+    const prompt = buildUserPrompt('mr', mrInfo.title, this.template);
+    const systemMessage = buildSystemMessage('mr');
 
-Tugasmu adalah menganalisis git diff berikut dan mengisi template MR dengan tepat.
-
-Aturan:
-- Gunakan bahasa Indonesia
-- Isi setiap section berdasarkan perubahan nyata di diff
-- Jika tidak ada perubahan untuk suatu section, tulis hanya tanda "-"
-- Untuk section Testing, tambahkan checklist spesifik berdasarkan perubahan
-- Kembalikan HANYA template yang sudah diisi, tanpa penjelasan tambahan
-
-Judul MR: "${mrInfo.title}"
-
-TEMPLATE YANG HARUS DIISI:
-${this.template}`;
-
-    const description = await this.aiProvider.generate(prompt, diff);
+    const description = await this.aiProvider.generate(prompt, diff, systemMessage);
     await this.updateMRDescription(description);
 
     console.log(`[MR Generator] ✓ Deskripsi MR berhasil diupdate!`);
