@@ -1,51 +1,111 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { existsSync, mkdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync, readFileSync } from 'fs';
 import { resolve } from 'path';
-import { loadConfig, saveConfig } from './config.js';
+
+const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
+import { intro, outro, select, confirm, text, isCancel } from '@clack/prompts';
+import { loadConfig, saveConfig, getConfigPath } from './config.js';
 import { defaultTemplate, githubTemplate } from './templates/default.js';
-import { buildSystemMessage, PROMPT_TEMPLATE } from './prompts.js';
+import { buildSystemMessage, buildPromptScriptTemplate } from './prompts.js';
 import { GitLabGenerator } from './generators/gitlab.js';
 import { GitHubGenerator } from './generators/github.js';
 import { OpenAIProvider } from './providers/openai.js';
-import type { Platform, Config } from './types.js';
+import type { Platform, Language, Config } from './types.js';
 
 const program = new Command();
 
-program
-  .name('mr-describe')
-  .description('AI-powered Merge Request description generator')
-  .version('1.0.0');
+program.name(pkg.name).description(pkg.description).version(pkg.version);
 
 program
   .command('init')
   .description('Initialize mr-describe in your project')
-  .option('-p, --platform <platform>', 'Platform to add (gitlab/github)', 'gitlab')
-  .option('-m, --model <model>', 'AI model', 'gpt-4o')
-  .option('-d, --max-diff <number>', 'Max diff characters', '8000')
-  .action(async (opts) => {
-    const platform = opts.platform as Platform;
+  .action(async () => {
     const cwd = process.cwd();
-    const configPath = resolve(cwd, '.mr-describerc');
 
-    console.log(`\n🆕 Initializing mr-describe for ${platform}...\n`);
+    intro(`${pkg.name} v${pkg.version}\n${pkg.description}`);
 
-    let config: Config;
-    if (existsSync(configPath)) {
-      config = loadConfig(cwd);
-      console.log('📄 Existing config loaded.');
-    } else {
-      config = {
-        platforms: [],
-        aiProvider: 'openai' as const,
-        model: opts.model,
-        maxDiffChars: parseInt(opts.maxDiff),
-        providers: {
-          openai: { apiKey: 'env:OPENAI_API_KEY', model: opts.model },
-        },
-      };
+    const platform = (await select({
+      message: 'Select platform',
+      options: [
+        { value: 'gitlab', label: 'GitLab' },
+        { value: 'github', label: 'GitHub' },
+      ],
+      initialValue: 'gitlab',
+    })) as Platform;
+    if (isCancel(platform)) { outro('Cancelled.'); process.exit(0); }
+
+    const existingConfig = loadConfig(cwd);
+    const configExists = existsSync(getConfigPath(cwd));
+
+    if (configExists && existingConfig.platforms.includes(platform)) {
+      const reinitResult = await confirm({
+        message: `Platform "${platform}" is already configured. Reinitialize?`,
+        initialValue: false,
+      });
+      if (isCancel(reinitResult)) { outro('Cancelled.'); process.exit(0); }
+      if (!reinitResult) { outro('Cancelled.'); process.exit(0); }
     }
+
+    const scriptResult = await confirm({
+      message: 'Generate standalone script (no npx dependency)?',
+      initialValue: false,
+    });
+    if (isCancel(scriptResult)) process.exit(0);
+    const generateScript = scriptResult as boolean;
+
+    let model = existingConfig.model;
+    let maxDiffChars = existingConfig.maxDiffChars;
+    let lang: Language = existingConfig.lang;
+
+    let reconfig = false;
+    if (configExists) {
+      const reconfigResult = await confirm({
+        message: '.mr-describerc already exists. Reconfigure?',
+        initialValue: false,
+      });
+      if (isCancel(reconfigResult)) process.exit(0);
+      reconfig = reconfigResult as boolean;
+    }
+
+    if (!configExists || reconfig) {
+      const modelResult = await text({
+        message: 'AI model',
+        initialValue: model || 'gpt-4o',
+      });
+      if (isCancel(modelResult)) process.exit(0);
+      model = modelResult as string;
+
+      const maxDiffInput = await text({
+        message: 'Max diff characters',
+        initialValue: String(maxDiffChars || '8000'),
+      });
+      if (isCancel(maxDiffInput)) process.exit(0);
+      maxDiffChars = parseInt(maxDiffInput as string, 10);
+
+      const langResult = await select({
+        message: 'Output language',
+        options: [
+          { value: 'id', label: 'id — Indonesian' },
+          { value: 'en', label: 'en — English' },
+        ],
+        initialValue: lang,
+      });
+      if (isCancel(langResult)) process.exit(0);
+      lang = langResult as Language;
+    }
+
+    const config: Config = {
+      platforms: [platform],
+      aiProvider: 'openai',
+      model,
+      lang,
+      maxDiffChars,
+      providers: {
+        openai: { apiKey: 'env:OPENAI_API_KEY', model },
+      },
+    };
 
     if (!config.platforms.includes(platform)) {
       config.platforms.push(platform);
@@ -55,28 +115,32 @@ program
     mkdirSync(mrDescribeDir, { recursive: true });
 
     if (platform === 'gitlab') {
-      writeFileSync(resolve(mrDescribeDir, 'generate-mr-desc.js'), generateGitLabScript(config));
-      writeFileSync(resolve(cwd, '.gitlab-ci.yml'), generateGitLabCI());
+      const gitlabScriptPath = resolve(mrDescribeDir, 'generate-mr-desc.js');
+      if (generateScript) {
+        writeFileSync(gitlabScriptPath, generateGitLabScript(config, lang));
+      } else if (existsSync(gitlabScriptPath)) {
+        rmSync(gitlabScriptPath);
+      }
+      writeFileSync(resolve(cwd, '.gitlab-ci.yml'), generateGitLabCI(generateScript));
       mkdirSync(resolve(cwd, '.gitlab', 'merge_request_templates'), { recursive: true });
-      writeFileSync(
-        resolve(cwd, '.gitlab', 'merge_request_templates', 'Default.md'),
-        defaultTemplate,
-      );
+      writeFileSync(resolve(cwd, '.gitlab', 'merge_request_templates', 'Default.md'), defaultTemplate);
     } else if (platform === 'github') {
-      writeFileSync(resolve(mrDescribeDir, 'generate-pr-desc.js'), generateGitHubScript(config));
+      const githubScriptPath = resolve(mrDescribeDir, 'generate-pr-desc.js');
+      if (generateScript) {
+        writeFileSync(githubScriptPath, generateGitHubScript(config, lang));
+      } else if (existsSync(githubScriptPath)) {
+        rmSync(githubScriptPath);
+      }
       mkdirSync(resolve(cwd, '.github', 'workflows'), { recursive: true });
-      writeFileSync(
-        resolve(cwd, '.github', 'workflows', 'mr-describe.yml'),
-        generateGitHubWorkflow(),
-      );
+      writeFileSync(resolve(cwd, '.github', 'workflows', 'mr-describe.yml'), generateGitHubWorkflow(generateScript));
       mkdirSync(resolve(cwd, '.github'), { recursive: true });
       writeFileSync(resolve(cwd, '.github', 'PULL_REQUEST_TEMPLATE.md'), githubTemplate);
     }
 
     saveConfig(config, cwd);
 
-    console.log(`\n✅ Successfully initialized mr-describe for ${platform}!`);
-    console.log('\n📝 Next steps:');
+    outro(`Successfully initialized mr-describe for ${platform}!`);
+    console.log('Next steps:');
     console.log('1. Set your API key in CI secrets (OPENAI_API_KEY)');
     console.log('2. Commit the generated files');
     console.log('3. Create a merge request to test');
@@ -107,13 +171,11 @@ program
       const baseUrl = process.env.GITLAB_API_V4_URL || 'https://gitlab.com/api/v4';
 
       if (!token || !projectId || !mrIid) {
-        console.error(
-          '❌ Missing required CI variables (GITLAB_TOKEN, CI_PROJECT_ID, CI_MERGE_REQUEST_IID)',
-        );
+        console.error('❌ Missing required CI variables (GITLAB_TOKEN, CI_PROJECT_ID, CI_MERGE_REQUEST_IID)');
         process.exit(1);
       }
 
-      const generator = new GitLabGenerator(token, projectId, mrIid, baseUrl, provider, template);
+      const generator = new GitLabGenerator(token, projectId, mrIid, baseUrl, provider, template, config.lang);
       await generator.generate();
     } else if (platform === 'github') {
       const token = process.env.GITHUB_TOKEN;
@@ -123,21 +185,11 @@ program
       const prNumber = process.env.GITHUB_PR_NUMBER;
 
       if (!token || !owner || !repo || !prNumber) {
-        console.error(
-          '❌ Missing required CI variables (GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_PR_NUMBER)',
-        );
+        console.error('❌ Missing required CI variables (GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_PR_NUMBER)');
         process.exit(1);
       }
 
-      const generator = new GitHubGenerator(
-        token,
-        owner,
-        repo,
-        prNumber,
-        'https://api.github.com',
-        provider,
-        template,
-      );
+      const generator = new GitHubGenerator(token, owner, repo, prNumber, 'https://api.github.com', provider, template, config.lang);
       await generator.generate();
     }
   });
@@ -186,9 +238,15 @@ configCmd
         process.exit(1);
       }
       config.aiProvider = value as 'openai';
+    } else if (key === 'lang') {
+      if (value !== 'id' && value !== 'en') {
+        console.error('❌ Lang must be "id" or "en"');
+        process.exit(1);
+      }
+      config.lang = value as Language;
     } else {
       console.error(`❌ Unknown key: ${key}`);
-      console.log('Available keys: platforms, model, maxDiffChars, aiProvider');
+      console.log('Available keys: platforms, model, maxDiffChars, aiProvider, lang');
       process.exit(1);
     }
 
@@ -210,11 +268,9 @@ function getApiKey(config: Config): string | null {
   return provider.apiKey;
 }
 
-function generateGitLabScript(config: Config): string {
-  const systemMessage = buildSystemMessage('mr');
-  const generatedPrompt = PROMPT_TEMPLATE.replace(/__LABEL__/g, 'MR')
-    .replace('__TITLE__', '${mrInfo.title}')
-    .replace('__TEMPLATE__', '${TEMPLATE}');
+function generateGitLabScript(config: Config, lang: Language): string {
+  const systemMessage = buildSystemMessage('mr', lang);
+  const generatedPrompt = buildPromptScriptTemplate('mr', lang);
 
   return `/**
  * generate-mr-desc.js
@@ -296,7 +352,7 @@ async function main() {
 main().catch(err => { console.error('[MR Generator] ✗', err.message); process.exit(0); });`;
 }
 
-function generateGitLabCI(): string {
+function generateGitLabCI(generateScript: boolean): string {
   return `stages:
   - ai-mr
 
@@ -308,17 +364,14 @@ generate-mr-description:
   variables:
     GIT_DEPTH: 0
   script:
-    - cd .mr-describe/gitlab
-    - node generate-mr-desc.js
+    - ${generateScript ? 'cd .mr-describe/gitlab && node generate-mr-desc.js' : 'npx mr-describe generate --platform gitlab'}
   allow_failure: true
 `;
 }
 
-function generateGitHubScript(config: Config): string {
-  const systemMessage = buildSystemMessage('pr');
-  const generatedPrompt = PROMPT_TEMPLATE.replace(/__LABEL__/g, 'PR')
-    .replace('__TITLE__', '${prInfo.title}')
-    .replace('__TEMPLATE__', '${TEMPLATE}');
+function generateGitHubScript(config: Config, lang: Language): string {
+  const systemMessage = buildSystemMessage('pr', lang);
+  const generatedPrompt = buildPromptScriptTemplate('pr', lang);
 
   return `/**
  * generate-pr-desc.js
@@ -402,7 +455,7 @@ async function main() {
 main().catch(err => { console.error('[PR Generator] ✗', err.message); process.exit(0); });`;
 }
 
-function generateGitHubWorkflow(): string {
+function generateGitHubWorkflow(generateScript: boolean): string {
   return `name: Generate PR Description
 
 on:
@@ -418,8 +471,7 @@ jobs:
 
       - name: Generate PR Description
         run: |
-          cd .mr-describe/github
-          node generate-pr-desc.js
+          ${generateScript ? 'cd .mr-describe/github && node generate-pr-desc.js' : 'npx mr-describe generate --platform github'}
         env:
           GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: \${{ secrets.OPENAI_API_KEY }}

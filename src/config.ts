@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
-import type { Config, Platform, AIProvider } from './types.js';
+import type { Config, Platform } from './types.js';
 
 const providerConfigSchema = z.object({
   apiKey: z.string(),
@@ -13,6 +13,7 @@ const configSchema = z.object({
   platforms: z.array(z.enum(['gitlab', 'github'])),
   aiProvider: z.enum(['openai']),
   model: z.string().default('gpt-4o'),
+  lang: z.enum(['id', 'en']).default('id'),
   maxDiffChars: z.number().default(8000),
   providers: z.object({
     openai: providerConfigSchema.optional(),
@@ -23,6 +24,7 @@ const defaultConfig: Config = {
   platforms: ['gitlab'],
   aiProvider: 'openai',
   model: 'gpt-4o',
+  lang: 'id',
   maxDiffChars: 8000,
   providers: {
     openai: {

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { PRInfo, AIProviderInterface } from '../types.js';
+import type { PRInfo, AIProviderInterface, Language } from '../types.js';
 import { buildUserPrompt, buildSystemMessage } from '../prompts.js';
 
 interface PRFile {
@@ -18,6 +18,7 @@ export class GitHubGenerator {
   private baseUrl: string;
   private aiProvider: AIProviderInterface;
   private template: string;
+  private lang: Language;
 
   constructor(
     token: string,
@@ -26,7 +27,8 @@ export class GitHubGenerator {
     prNumber: string,
     baseUrl: string = 'https://api.github.com',
     aiProvider: AIProviderInterface,
-    template: string
+    template: string,
+    lang: Language = 'id',
   ) {
     this.token = token;
     this.owner = owner;
@@ -35,6 +37,7 @@ export class GitHubGenerator {
     this.baseUrl = baseUrl;
     this.aiProvider = aiProvider;
     this.template = template;
+    this.lang = lang;
   }
 
   private getHeaders() {
@@ -93,8 +96,8 @@ export class GitHubGenerator {
       return;
     }
 
-    const prompt = buildUserPrompt('pr', prInfo.title, this.template);
-    const systemMessage = buildSystemMessage('pr');
+    const prompt = buildUserPrompt('pr', prInfo.title, this.template, this.lang);
+    const systemMessage = buildSystemMessage('pr', this.lang);
 
     const description = await this.aiProvider.generate(prompt, diff, systemMessage);
     await this.updatePRDescription(description);

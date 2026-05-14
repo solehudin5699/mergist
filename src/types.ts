@@ -1,5 +1,6 @@
 export type Platform = 'gitlab' | 'github';
 export type AIProvider = 'openai';
+export type Language = 'id' | 'en';
 
 export interface ProviderConfig {
   apiKey: string;
@@ -11,6 +12,7 @@ export interface Config {
   platforms: Platform[];
   aiProvider: AIProvider;
   model: string;
+  lang: Language;
   maxDiffChars: number;
   providers: {
     openai?: ProviderConfig;

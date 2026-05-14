@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { MRInfo, DiffFile, AIProviderInterface } from '../types.js';
+import type { MRInfo, DiffFile, AIProviderInterface, Language } from '../types.js';
 import { buildUserPrompt, buildSystemMessage } from '../prompts.js';
 
 export class GitLabGenerator {
@@ -9,6 +9,7 @@ export class GitLabGenerator {
   private baseUrl: string;
   private aiProvider: AIProviderInterface;
   private template: string;
+  private lang: Language;
 
   constructor(
     token: string,
@@ -16,7 +17,8 @@ export class GitLabGenerator {
     mrIid: string,
     baseUrl: string = 'https://gitlab.com/api/v4',
     aiProvider: AIProviderInterface,
-    template: string
+    template: string,
+    lang: Language = 'id',
   ) {
     this.token = token;
     this.projectId = projectId;
@@ -24,6 +26,7 @@ export class GitLabGenerator {
     this.baseUrl = baseUrl;
     this.aiProvider = aiProvider;
     this.template = template;
+    this.lang = lang;
   }
 
   private getHeaders() {
@@ -77,8 +80,8 @@ export class GitLabGenerator {
       return;
     }
 
-    const prompt = buildUserPrompt('mr', mrInfo.title, this.template);
-    const systemMessage = buildSystemMessage('mr');
+    const prompt = buildUserPrompt('mr', mrInfo.title, this.template, this.lang);
+    const systemMessage = buildSystemMessage('mr', this.lang);
 
     const description = await this.aiProvider.generate(prompt, diff, systemMessage);
     await this.updateMRDescription(description);
