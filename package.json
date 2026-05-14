@@ -5,24 +5,43 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "mr-describe": "./bin/mr-describe"
+    "mr-describe": "./dist/cli.js"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "gitlab",
     "github",
     "merge-request",
     "pull-request",
+    "mr-description",
+    "pr-description",
+    "code-review",
     "ai",
-    "claude",
-    "openai"
+    "openai",
+    "cli",
+    "automation",
+    "devops"
   ],
-  "author": "",
+  "author": "solehudin5699",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/solehudin5699/mr-describe.git"
+  },
+  "bugs": {
+    "url": "https://github.com/solehudin5699/mr-describe/issues"
+  },
+  "homepage": "https://github.com/solehudin5699/mr-describe#readme",
   "dependencies": {
     "@clack/prompts": "^1.4.0",
     "axios": "^1.7.9",
