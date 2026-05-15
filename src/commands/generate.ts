@@ -30,7 +30,7 @@ export async function generateAction(opts: { platform: string }): Promise<void> 
     const token = process.env.GITLAB_TOKEN;
     const projectId = process.env.CI_PROJECT_ID;
     const mrIid = process.env.CI_MERGE_REQUEST_IID;
-    const baseUrl = process.env.GITLAB_API_V4_URL || 'https://gitlab.com/api/v4';
+    const baseUrl = process.env.CI_API_V4_URL || 'https://gitlab.com/api/v4';
 
     if (!token || !projectId || !mrIid) {
       console.error('❌ Missing required CI variables (GITLAB_TOKEN, CI_PROJECT_ID, CI_MERGE_REQUEST_IID)');

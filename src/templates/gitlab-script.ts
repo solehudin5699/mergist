@@ -22,7 +22,7 @@ export function generateGitLabScript(config: Config, lang: Language): string {
 
 const https = require('https');
 
-const { GITLAB_TOKEN, CI_PROJECT_ID, CI_MERGE_REQUEST_IID, GITLAB_API_V4_URL, ${envVarName}: AI_API_KEY } = process.env;
+const { GITLAB_TOKEN, CI_PROJECT_ID, CI_MERGE_REQUEST_IID, CI_API_V4_URL, ${envVarName}: AI_API_KEY } = process.env;
 
 const MODEL = '${model}';
 const MAX_DIFF_CHARS = ${config.maxDiffChars};
@@ -134,21 +134,21 @@ function getHeaders() {
 }
 
 async function getMRInfo() {
-  const url = \`\${GITLAB_API_V4_URL}/projects/\${CI_PROJECT_ID}/merge_requests/\${CI_MERGE_REQUEST_IID}\`;
+  const url = \`\${CI_API_V4_URL}/projects/\${CI_PROJECT_ID}/merge_requests/\${CI_MERGE_REQUEST_IID}\`;
   const res = await httpRequest(url, { method: 'GET', headers: getHeaders() });
   if (res.status !== 200) throw new Error(\`Failed to get MR info (HTTP \${res.status})\`);
   return res.body;
 }
 
 async function getMRDiff() {
-  const url = \`\${GITLAB_API_V4_URL}/projects/\${CI_PROJECT_ID}/merge_requests/\${CI_MERGE_REQUEST_IID}/diffs\`;
+  const url = \`\${CI_API_V4_URL}/projects/\${CI_PROJECT_ID}/merge_requests/\${CI_MERGE_REQUEST_IID}/diffs\`;
   const res = await httpRequest(url, { method: 'GET', headers: getHeaders() });
   if (res.status !== 200) throw new Error(\`Failed to get MR diff (HTTP \${res.status})\`);
   return res.body.map((f) => \`--- \${f.old_path}\\n+++ \${f.new_path}\\n\${f.diff}\`).join('\\n\\n');
 }
 
 async function updateMRDescription(desc) {
-  const url = \`\${GITLAB_API_V4_URL}/projects/\${CI_PROJECT_ID}/merge_requests/\${CI_MERGE_REQUEST_IID}\`;
+  const url = \`\${CI_API_V4_URL}/projects/\${CI_PROJECT_ID}/merge_requests/\${CI_MERGE_REQUEST_IID}\`;
   const res = await httpRequest(url, { method: 'PUT', headers: getHeaders() }, { description: desc });
   if (res.status !== 200) throw new Error(\`Failed to update MR (HTTP \${res.status})\`);
 }
