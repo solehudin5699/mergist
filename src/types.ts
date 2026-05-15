@@ -1,5 +1,17 @@
 export type Platform = 'gitlab' | 'github';
-export type AIProvider = 'openai';
+export type AIProvider = 'openai' | 'deepseek' | 'groq' | 'custom';
+
+export interface ProviderPreset {
+  defaultModel: string;
+  baseUrl: string;
+}
+
+export const PROVIDER_PRESETS: Record<AIProvider, ProviderPreset> = {
+  openai: { defaultModel: 'gpt-4o', baseUrl: 'https://api.openai.com/v1' },
+  deepseek: { defaultModel: 'deepseek-chat', baseUrl: 'https://api.deepseek.com' },
+  groq: { defaultModel: 'llama-3.3-70b-versatile', baseUrl: 'https://api.groq.com/openai/v1' },
+  custom: { defaultModel: 'gpt-4o', baseUrl: '' },
+};
 export type Language = 'id' | 'en';
 export type Section = 'summary' | 'changes' | 'testing' | 'review' | 'notes' | 'references';
 
@@ -21,7 +33,7 @@ export interface Config {
   autoUpdate: boolean;
   templates: Section[];
   providers: {
-    openai?: ProviderConfig;
+    [key: string]: ProviderConfig | undefined;
   };
 }
 

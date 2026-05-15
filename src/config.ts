@@ -13,15 +13,13 @@ const providerConfigSchema = z.object({
 
 const configSchema = z.object({
   platforms: z.array(z.enum(['gitlab', 'github'])),
-  aiProvider: z.enum(['openai']),
+  aiProvider: z.enum(['openai', 'deepseek', 'groq', 'custom']).default('openai'),
   model: z.string().default('gpt-4o'),
   lang: z.enum(['id', 'en']).default('id'),
   maxDiffChars: z.number().default(8000),
   autoUpdate: z.boolean().default(true),
   templates: z.array(sectionSchema).default(['summary', 'changes', 'testing', 'review', 'notes', 'references']),
-  providers: z.object({
-    openai: providerConfigSchema.optional(),
-  }),
+  providers: z.record(z.string(), providerConfigSchema.optional()),
 });
 
 const defaultConfig: Config = {
@@ -34,7 +32,7 @@ const defaultConfig: Config = {
   templates: ['summary', 'changes', 'testing', 'review', 'notes', 'references'],
   providers: {
     openai: {
-      apiKey: 'env:OPENAI_API_KEY',
+      apiKey: 'env:AI_API_KEY',
       model: 'gpt-4o',
     },
   },

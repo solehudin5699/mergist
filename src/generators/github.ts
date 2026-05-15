@@ -2,7 +2,7 @@ import axios from 'axios';
 import type { PRInfo, AIProviderInterface, Language, Section } from '../types.js';
 import { HUMAN_SECTIONS } from '../types.js';
 import { buildUserPrompt, buildSystemMessage } from '../prompts.js';
-import { splitSections } from '../templates/default.js';
+import { splitSections, wrapInMarkers } from '../templates/default.js';
 
 interface PRFile {
   filename: string;
@@ -126,10 +126,11 @@ export class GitHubGenerator {
     const prompt = buildUserPrompt('pr', prInfo.title, this.template, this.lang);
     const systemMessage = buildSystemMessage('pr', this.lang);
     const description = await this.aiProvider.generate(prompt, diff, systemMessage);
+    const wrapped = wrapInMarkers(description, this.sections);
 
     const finalDescription = hasDescription
-      ? this.preserveHumanSections(description, prInfo.body)
-      : description;
+      ? this.preserveHumanSections(wrapped, prInfo.body)
+      : wrapped;
 
     await this.updatePRDescription(finalDescription);
 

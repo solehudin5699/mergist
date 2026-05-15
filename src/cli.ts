@@ -12,7 +12,8 @@ import { buildSystemMessage, buildPromptScriptTemplate } from './prompts.js';
 import { GitLabGenerator } from './generators/gitlab.js';
 import { GitHubGenerator } from './generators/github.js';
 import { OpenAIProvider } from './providers/openai.js';
-import type { Platform, Language, Config, Section } from './types.js';
+import type { Platform, Language, Config, Section, AIProvider } from './types.js';
+import { PROVIDER_PRESETS } from './types.js';
 
 const program = new Command();
 
@@ -58,6 +59,8 @@ program
     let model = existingConfig.model;
     let maxDiffChars = existingConfig.maxDiffChars;
     let lang: Language = existingConfig.lang;
+    let aiProvider: AIProvider = existingConfig.aiProvider || 'openai';
+    let apiBaseUrl = existingConfig.providers?.[aiProvider]?.baseUrl || '';
 
     let reconfig = false;
     if (configExists) {
@@ -70,12 +73,38 @@ program
     }
 
     if (!configExists || reconfig) {
+      const providerResult = await select({
+        message: 'AI Provider',
+        options: [
+          { value: 'openai', label: 'OpenAI' },
+          { value: 'deepseek', label: 'DeepSeek' },
+          { value: 'groq', label: 'Groq' },
+          { value: 'custom', label: 'Custom (OpenAI-compatible)' },
+        ],
+        initialValue: aiProvider,
+      });
+      if (isCancel(providerResult)) process.exit(0);
+      aiProvider = providerResult as AIProvider;
+
+      const preset = PROVIDER_PRESETS[aiProvider];
+      model = preset.defaultModel;
+      apiBaseUrl = existingConfig.providers?.[aiProvider]?.baseUrl || preset.baseUrl;
+
       const modelResult = await text({
         message: 'AI model',
-        initialValue: model || 'gpt-4o',
+        initialValue: model,
       });
       if (isCancel(modelResult)) process.exit(0);
-      model = modelResult as string;
+      model = (modelResult as string).trim();
+
+      if (aiProvider === 'custom') {
+        const baseUrlResult = await text({
+          message: 'API base URL',
+          initialValue: apiBaseUrl,
+        });
+        if (isCancel(baseUrlResult)) process.exit(0);
+        apiBaseUrl = (baseUrlResult as string).trim() || 'https://api.openai.com/v1';
+      }
 
       const maxDiffInput = await text({
         message: 'Max diff characters',
@@ -128,14 +157,14 @@ program
       platforms: configExists
         ? [...new Set([...existingConfig.platforms, platform])]
         : [platform],
-      aiProvider: 'openai',
+      aiProvider,
       model,
       lang,
       maxDiffChars,
       autoUpdate,
       templates: sections,
       providers: {
-        openai: { apiKey: 'env:OPENAI_API_KEY', model },
+        [aiProvider]: { apiKey: 'env:AI_API_KEY', model, baseUrl: apiBaseUrl },
       },
     };
 
@@ -163,7 +192,7 @@ program
         rmSync(githubScriptPath);
       }
       mkdirSync(resolve(cwd, '.github', 'workflows'), { recursive: true });
-      writeFileSync(resolve(cwd, '.github', 'workflows', 'mr-describe.yml'), generateGitHubWorkflow(generateScript));
+      writeFileSync(resolve(cwd, '.github', 'workflows', 'mr-describe.yml'), generateGitHubWorkflow(generateScript, config));
       // mkdirSync(resolve(cwd, '.github'), { recursive: true });
       // writeFileSync(resolve(cwd, '.github', 'PULL_REQUEST_TEMPLATE.md'), template);
     }
@@ -172,7 +201,7 @@ program
 
     outro(`Successfully initialized mr-describe for ${platform}!`);
     console.log('Next steps:');
-    console.log('1. Set your API key in CI secrets (OPENAI_API_KEY)');
+    console.log('1. Set your API key in CI secrets (AI_API_KEY)');
     console.log('2. Commit the generated files');
     console.log('3. Create a merge request to test');
   });
@@ -185,13 +214,18 @@ program
     const platform = opts.platform as Platform;
     const config = loadConfig();
 
-    const apiKey = getApiKey(config);
+    const providerKey = config.aiProvider || 'openai';
+    const providerCfg = config.providers[providerKey] || { apiKey: 'env:AI_API_KEY', model: 'gpt-4o', baseUrl: '' };
+    const model = providerCfg.model || config.model || 'gpt-4o';
+    const baseUrl = providerCfg.baseUrl || PROVIDER_PRESETS[providerKey]?.baseUrl || 'https://api.openai.com/v1';
+    const envKey = providerCfg.apiKey?.replace(/^env:/, '') || 'AI_API_KEY';
+    const apiKey = process.env[envKey];
     if (!apiKey) {
-      console.error('❌ API key not found. Set OPENAI_API_KEY env variable.');
+      console.error(`❌ API key not found. Set ${envKey} env variable.`);
       process.exit(1);
     }
 
-    const provider = new OpenAIProvider(apiKey, config.providers.openai?.model || 'gpt-4o');
+    const provider = new OpenAIProvider(apiKey, model, baseUrl);
 
     const type = platform === 'gitlab' ? 'mr' : 'pr';
     const template = buildTemplate(type, config.templates || ['summary', 'changes', 'testing', 'review', 'notes', 'references'], config.lang);
@@ -208,7 +242,12 @@ program
       }
 
       const generator = new GitLabGenerator(token, projectId, mrIid, baseUrl, provider, template, config.lang, config.templates, config.autoUpdate);
-      await generator.generate();
+      try {
+        await generator.generate();
+      } catch (err: any) {
+        console.error(`[MR Generator] ✗ ${err.message}`);
+        process.exit(0);
+      }
     } else if (platform === 'github') {
       const token = process.env.GITHUB_TOKEN;
       const owner = process.env.GITHUB_REPOSITORY_OWNER;
@@ -222,7 +261,12 @@ program
       }
 
       const generator = new GitHubGenerator(token, owner, repo, prNumber, 'https://api.github.com', provider, template, config.lang, config.templates, config.autoUpdate);
-      await generator.generate();
+      try {
+        await generator.generate();
+      } catch (err: any) {
+        console.error(`[MR Generator] ✗ ${err.message}`);
+        process.exit(0);
+      }
     }
   });
 
@@ -265,11 +309,12 @@ configCmd
     } else if (key === 'maxDiffChars') {
       config.maxDiffChars = parseInt(value, 10);
     } else if (key === 'aiProvider') {
-      if (value !== 'openai') {
-        console.error('❌ Only openai is supported');
+      const validProviders = ['openai', 'deepseek', 'groq', 'custom'];
+      if (!validProviders.includes(value)) {
+        console.error(`❌ aiProvider must be one of: ${validProviders.join(', ')}`);
         process.exit(1);
       }
-      config.aiProvider = value as 'openai';
+      config.aiProvider = value as AIProvider;
     } else if (key === 'lang') {
       if (value !== 'id' && value !== 'en') {
         console.error('❌ Lang must be "id" or "en"');
@@ -325,17 +370,22 @@ function generateGitLabScript(config: Config, lang: Language): string {
   const sections = config.templates || ['summary', 'changes', 'testing', 'review', 'notes', 'references'];
   const type = 'mr';
   const template = buildTemplate(type, sections, lang);
+  const providerKey = config.aiProvider || 'openai';
+  const providerCfg = config.providers[providerKey] || { apiKey: 'env:AI_API_KEY', baseUrl: '', model: '' };
+  const envVarName = providerCfg.apiKey?.replace(/^env:/, '') || 'AI_API_KEY';
+  const model = providerCfg.model || config.model || 'gpt-4o';
+  const baseUrl = providerCfg.baseUrl || PROVIDER_PRESETS[providerKey]?.baseUrl || 'https://api.openai.com/v1';
 
   return `/**
  * generate-mr-desc.js
- * Auto-generate GitLab MR description using OpenAI
+ * Auto-generate GitLab MR description using ${providerKey}
  */
 
 const https = require('https');
 
-const { GITLAB_TOKEN, CI_PROJECT_ID, CI_MERGE_REQUEST_IID, GITLAB_API_V4_URL, OPENAI_API_KEY } = process.env;
+const { GITLAB_TOKEN, CI_PROJECT_ID, CI_MERGE_REQUEST_IID, GITLAB_API_V4_URL, ${envVarName}: AI_API_KEY } = process.env;
 
-const MODEL = '${config.model}';
+const MODEL = '${model}';
 const MAX_DIFF_CHARS = ${config.maxDiffChars};
 const SYSTEM_MESSAGE = ${JSON.stringify(systemMessage)};
 
@@ -344,7 +394,56 @@ const AI_SECTIONS = ['summary', 'changes', 'testing', 'review'];
 const HUMAN_SECTIONS = ['notes', 'references'];
 const AUTO_UPDATE = ${config.autoUpdate};
 
+const BASE_URL = '${baseUrl}';
+
 const TEMPLATE = \`${template.replace(/`/g, '\\`')}\`;
+
+const SECTION_HEADINGS = {
+  summary: ['## Ringkasan', '## Summary'],
+  changes: ['## Daftar Perubahan', '## Changes'],
+  testing: ['## Testing'],
+  review: ['## AI Review'],
+  notes: ['## Catatan', '## Notes'],
+  references: ['## Referensi', '## References'],
+};
+
+function wrapInMarkers(text, sections) {
+  if (text.includes('<!-- SECTION:')) return text;
+  const parts = [];
+  for (let i = 0; i < sections.length; i++) {
+    const s = sections[i];
+    const headings = SECTION_HEADINGS[s] || [\`## \${s}\`];
+    const heading = headings.find(h => text.includes(h));
+    if (!heading) {
+      parts.push(\`<!-- SECTION:\${s} -->\\n-\\n<!-- ENDSECTION:\${s} -->\`);
+      continue;
+    }
+    const headingIdx = text.indexOf(heading);
+    const afterHeading = text.slice(headingIdx + heading.length);
+    const nextSections = sections.slice(i + 1);
+    const nextHeading = nextSections.map(s2 => SECTION_HEADINGS[s2]).flat().find(h => afterHeading.includes(h));
+    const content = nextHeading
+      ? afterHeading.slice(0, afterHeading.indexOf(nextHeading)).trim()
+      : afterHeading.trim();
+    parts.push(\`<!-- SECTION:\${s} -->\\n\${heading}\\n\${content || '-'}\\n<!-- ENDSECTION:\${s} -->\`);
+  }
+  return parts.join('\\n\\n');
+}
+
+async function withRetry(fn, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try { return await fn(); }
+    catch (err) {
+      if (i < retries - 1 && err.status === 429) {
+        const delay = Math.pow(2, i) * 1000;
+        console.log(\`[MR Generator] Rate limited, retrying in \${delay}ms...\`);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
 
 function splitSections(description) {
   const sections = {};
@@ -416,11 +515,15 @@ async function updateMRDescription(desc) {
 }
 
 async function callAI(prompt, diff) {
-  const res = await httpRequest('https://api.openai.com/v1/chat/completions', {
+  const res = await httpRequest(BASE_URL + '/chat/completions', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': \`Bearer \${OPENAI_API_KEY}\` }
+    headers: { 'Content-Type': 'application/json', 'Authorization': \`Bearer \${AI_API_KEY}\` }
   }, { model: MODEL, max_tokens: 1000, messages: [{ role: 'system', content: SYSTEM_MESSAGE }, { role: 'user', content: prompt + '\\n\\nGIT DIFF:\\n' + diff.slice(0, MAX_DIFF_CHARS) }] });
-  if (res.status !== 200) throw new Error(\`AI error (HTTP \${res.status})\`);
+  if (res.status !== 200) {
+    const err = new Error(\`AI error (HTTP \${res.status})\`);
+    err.status = res.status;
+    throw err;
+  }
   return res.body.choices[0]?.message?.content?.trim() || '';
 }
 
@@ -436,9 +539,10 @@ async function main() {
   const title = mrInfo.title;
   const template = TEMPLATE;
   const prompt = \`${generatedPrompt}\`;
-  const desc = await callAI(prompt, diff);
+  const desc = await withRetry(() => callAI(prompt, diff));
+  const wrappedDesc = desc.includes('<!-- SECTION:') ? desc : wrapInMarkers(desc, SECTIONS);
 
-  const finalDesc = hasDesc ? preserveHumanSections(desc, mrInfo.description) : desc;
+  const finalDesc = hasDesc ? preserveHumanSections(wrappedDesc, mrInfo.description) : wrappedDesc;
   await updateMRDescription(finalDesc);
   console.log('[MR Generator] ✓ Deskripsi MR berhasil diupdate!');
 }
@@ -469,18 +573,23 @@ function generateGitHubScript(config: Config, lang: Language): string {
   const sections = config.templates || ['summary', 'changes', 'testing', 'review', 'notes', 'references'];
   const type = 'pr';
   const template = buildTemplate(type, sections, lang);
+  const providerKey = config.aiProvider || 'openai';
+  const providerCfg = config.providers[providerKey] || { apiKey: 'env:AI_API_KEY', baseUrl: '', model: '' };
+  const envVarName = providerCfg.apiKey?.replace(/^env:/, '') || 'AI_API_KEY';
+  const model = providerCfg.model || config.model || 'gpt-4o';
+  const baseUrl = providerCfg.baseUrl || PROVIDER_PRESETS[providerKey]?.baseUrl || 'https://api.openai.com/v1';
 
   return `/**
  * generate-pr-desc.js
- * Auto-generate GitHub PR description using OpenAI
+ * Auto-generate GitHub PR description using ${providerKey}
  */
 
 const https = require('https');
 
-const { GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_PR_NUMBER, OPENAI_API_KEY } = process.env;
+const { GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_PR_NUMBER, ${envVarName}: AI_API_KEY } = process.env;
 const [OWNER, REPO] = GITHUB_REPOSITORY.split('/');
 
-const MODEL = '${config.model}';
+const MODEL = '${model}';
 const MAX_DIFF_CHARS = ${config.maxDiffChars};
 const SYSTEM_MESSAGE = ${JSON.stringify(systemMessage)};
 
@@ -489,7 +598,56 @@ const AI_SECTIONS = ['summary', 'changes', 'testing', 'review'];
 const HUMAN_SECTIONS = ['notes', 'references'];
 const AUTO_UPDATE = ${config.autoUpdate};
 
+const BASE_URL = '${baseUrl}';
+
 const TEMPLATE = \`${template.replace(/`/g, '\\`')}\`;
+
+const SECTION_HEADINGS = {
+  summary: ['## Ringkasan', '## Summary'],
+  changes: ['## Daftar Perubahan', '## Changes'],
+  testing: ['## Testing'],
+  review: ['## AI Review'],
+  notes: ['## Catatan', '## Notes'],
+  references: ['## Referensi', '## References'],
+};
+
+function wrapInMarkers(text, sections) {
+  if (text.includes('<!-- SECTION:')) return text;
+  const parts = [];
+  for (let i = 0; i < sections.length; i++) {
+    const s = sections[i];
+    const headings = SECTION_HEADINGS[s] || [\`## \${s}\`];
+    const heading = headings.find(h => text.includes(h));
+    if (!heading) {
+      parts.push(\`<!-- SECTION:\${s} -->\\n-\\n<!-- ENDSECTION:\${s} -->\`);
+      continue;
+    }
+    const headingIdx = text.indexOf(heading);
+    const afterHeading = text.slice(headingIdx + heading.length);
+    const nextSections = sections.slice(i + 1);
+    const nextHeading = nextSections.map(s2 => SECTION_HEADINGS[s2]).flat().find(h => afterHeading.includes(h));
+    const content = nextHeading
+      ? afterHeading.slice(0, afterHeading.indexOf(nextHeading)).trim()
+      : afterHeading.trim();
+    parts.push(\`<!-- SECTION:\${s} -->\\n\${heading}\\n\${content || '-'}\\n<!-- ENDSECTION:\${s} -->\`);
+  }
+  return parts.join('\\n\\n');
+}
+
+async function withRetry(fn, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try { return await fn(); }
+    catch (err) {
+      if (i < retries - 1 && err.status === 429) {
+        const delay = Math.pow(2, i) * 1000;
+        console.log(\`[PR Generator] Rate limited, retrying in \${delay}ms...\`);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
 
 function splitSections(description) {
   const sections = {};
@@ -562,11 +720,15 @@ async function updatePRDescription(desc) {
 }
 
 async function callAI(prompt, diff) {
-  const res = await httpRequest('https://api.openai.com/v1/chat/completions', {
+  const res = await httpRequest(BASE_URL + '/chat/completions', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': \`Bearer \${OPENAI_API_KEY}\` }
+    headers: { 'Content-Type': 'application/json', 'Authorization': \`Bearer \${AI_API_KEY}\` }
   }, { model: MODEL, max_tokens: 1000, messages: [{ role: 'system', content: SYSTEM_MESSAGE }, { role: 'user', content: prompt + '\\n\\nGIT DIFF:\\n' + diff.slice(0, MAX_DIFF_CHARS) }] });
-  if (res.status !== 200) throw new Error(\`AI error (HTTP \${res.status})\`);
+  if (res.status !== 200) {
+    const err = new Error(\`AI error (HTTP \${res.status})\`);
+    err.status = res.status;
+    throw err;
+  }
   return res.body.choices[0]?.message?.content?.trim() || '';
 }
 
@@ -582,9 +744,10 @@ async function main() {
   const title = prInfo.title;
   const template = TEMPLATE;
   const prompt = \`${generatedPrompt}\`;
-  const desc = await callAI(prompt, diff);
+  const desc = await withRetry(() => callAI(prompt, diff));
+  const wrappedDesc = desc.includes('<!-- SECTION:') ? desc : wrapInMarkers(desc, SECTIONS);
 
-  const finalDesc = hasDesc ? preserveHumanSections(desc, prInfo.body) : desc;
+  const finalDesc = hasDesc ? preserveHumanSections(wrappedDesc, prInfo.body) : wrappedDesc;
   await updatePRDescription(finalDesc);
   console.log('[PR Generator] ✓ Deskripsi PR berhasil diupdate!');
 }
@@ -592,7 +755,11 @@ async function main() {
 main().catch(err => { console.error('[PR Generator] ✗', err.message); process.exit(0); });`;
 }
 
-function generateGitHubWorkflow(generateScript: boolean): string {
+function generateGitHubWorkflow(generateScript: boolean, config: Config): string {
+  const providerKey = config.aiProvider || 'openai';
+  const providerCfg = config.providers[providerKey] || { apiKey: 'env:AI_API_KEY' };
+  const envVarName = providerCfg.apiKey?.replace(/^env:/, '') || 'AI_API_KEY';
+
   return `name: Generate PR Description
 
 on:
@@ -611,6 +778,6 @@ jobs:
           ${generateScript ? 'cd .mr-describe/github && node generate-pr-desc.js' : 'npx mr-describe generate --platform github'}
         env:
           GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
-          OPENAI_API_KEY: \${{ secrets.OPENAI_API_KEY }}
+          ${envVarName}: \${{ secrets.${envVarName} }}
 `;
 }

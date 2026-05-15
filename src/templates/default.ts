@@ -54,3 +54,40 @@ export function splitSections(description: string): Record<string, string> {
   }
   return sections;
 }
+
+const SECTION_HEADINGS: Record<Section, string[]> = {
+  summary: ['## Ringkasan', '## Summary'],
+  changes: ['## Daftar Perubahan', '## Changes'],
+  testing: ['## Testing'],
+  review: ['## AI Review'],
+  notes: ['## Catatan', '## Notes'],
+  references: ['## Referensi', '## References'],
+};
+
+export function wrapInMarkers(text: string, sections: Section[]): string {
+  if (text.includes('<!-- SECTION:')) return text;
+
+  const parts: string[] = [];
+  for (let i = 0; i < sections.length; i++) {
+    const s = sections[i];
+    const heading = SECTION_HEADINGS[s].find(h => text.includes(h));
+    if (!heading) {
+      parts.push(`<!-- SECTION:${s} -->\n-\n<!-- ENDSECTION:${s} -->`);
+      continue;
+    }
+
+    const headingIdx = text.indexOf(heading);
+    const afterHeading = text.slice(headingIdx + heading.length);
+    const nextSections = sections.slice(i + 1);
+    const nextHeading = nextSections
+      .map(s2 => SECTION_HEADINGS[s2].find(h => afterHeading.includes(h)))
+      .find(Boolean);
+
+    const content = nextHeading
+      ? afterHeading.slice(0, afterHeading.indexOf(nextHeading)).trim()
+      : afterHeading.trim();
+
+    parts.push(`<!-- SECTION:${s} -->\n${heading}\n${content || '-'}\n<!-- ENDSECTION:${s} -->`);
+  }
+  return parts.join('\n\n');
+}

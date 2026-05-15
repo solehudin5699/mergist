@@ -1,19 +1,37 @@
 import axios from 'axios';
 import type { AIProviderInterface } from '../types.js';
 
+async function withRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
+  for (let i = 0; i < retries; i++) {
+    try { return await fn(); }
+    catch (err: any) {
+      if (i < retries - 1 && err.response?.status === 429) {
+        const delay = Math.pow(2, i) * 1000;
+        console.log(`[MR Generator] Rate limited, retrying in ${delay}ms...`);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error('withRetry: max retries exceeded');
+}
+
 export class OpenAIProvider implements AIProviderInterface {
   private apiKey: string;
   private model: string;
+  private baseUrl: string;
   private maxTokens: number = 1000;
 
-  constructor(apiKey: string, model: string = 'gpt-4o') {
+  constructor(apiKey: string, model: string = 'gpt-4o', baseUrl: string = 'https://api.openai.com/v1') {
     this.apiKey = apiKey;
     this.model = model;
+    this.baseUrl = baseUrl;
   }
 
   async generate(prompt: string, diff: string, systemMessage?: string): Promise<string> {
-    const response = await axios.post(
-      'https://api.openai.com/v1/chat/completions',
+    const response = await withRetry(() => axios.post(
+      `${this.baseUrl}/chat/completions`,
       {
         model: this.model,
         max_tokens: this.maxTokens,
@@ -34,7 +52,7 @@ export class OpenAIProvider implements AIProviderInterface {
           Authorization: `Bearer ${this.apiKey}`,
         },
       }
-    );
+    ));
 
     return response.data.choices[0]?.message?.content?.trim() || '';
   }

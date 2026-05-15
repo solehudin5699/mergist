@@ -5,7 +5,7 @@ const translations: Record<Lang, {
   system: string;
   task: string;
   rules: string;
-  instructions: [string, string, string, string, string];
+  instructions: [string, string, string, string, string, string];
   title: string;
   template: string;
 }> = {
@@ -18,6 +18,7 @@ const translations: Record<Lang, {
       'Isi setiap section berdasarkan perubahan nyata di diff',
       'Jika tidak ada perubahan untuk suatu section, tulis hanya tanda "-"',
       'Untuk section Testing, tambahkan checklist spesifik berdasarkan perubahan',
+      'Untuk section AI Review, berikan analisis teknis: ringkasan perubahan, potensi risiko, dan saran improvement',
       'Kembalikan HANYA template yang sudah diisi, tanpa penjelasan tambahan',
     ],
     title: 'Judul __SHORT_LABEL__: "__TITLE__"',
@@ -32,6 +33,7 @@ const translations: Record<Lang, {
       'Fill each section based on actual changes in the diff',
       'If no changes for a section, write only "-"',
       'For Testing section, add specific checklist based on changes',
+      'For AI Review section, provide technical analysis: change summary, potential risks, and improvement suggestions',
       'Return ONLY the filled template, without additional explanation',
     ],
     title: '__SHORT_LABEL__ Title: "__TITLE__"',

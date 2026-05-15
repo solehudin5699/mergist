@@ -2,7 +2,7 @@ import axios from 'axios';
 import type { MRInfo, DiffFile, AIProviderInterface, Language, Section } from '../types.js';
 import { HUMAN_SECTIONS } from '../types.js';
 import { buildUserPrompt, buildSystemMessage } from '../prompts.js';
-import { splitSections } from '../templates/default.js';
+import { splitSections, wrapInMarkers } from '../templates/default.js';
 
 export class GitLabGenerator {
   private token: string;
@@ -110,10 +110,11 @@ export class GitLabGenerator {
     const prompt = buildUserPrompt('mr', mrInfo.title, this.template, this.lang);
     const systemMessage = buildSystemMessage('mr', this.lang);
     const description = await this.aiProvider.generate(prompt, diff, systemMessage);
+    const wrapped = wrapInMarkers(description, this.sections);
 
     const finalDescription = hasDescription
-      ? this.preserveHumanSections(description, mrInfo.description)
-      : description;
+      ? this.preserveHumanSections(wrapped, mrInfo.description)
+      : wrapped;
 
     await this.updateMRDescription(finalDescription);
 
