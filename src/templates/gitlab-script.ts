@@ -16,7 +16,7 @@ export function generateGitLabScript(config: Config, lang: Language): string {
   const baseUrl = providerCfg.baseUrl || PROVIDER_PRESETS[providerKey]?.baseUrl || 'https://api.openai.com/v1';
 
   return `/**
- * generate-mr-desc.js
+ * generate.js — GitLab MR
  * Auto-generate GitLab MR description using ${providerKey}
  */
 

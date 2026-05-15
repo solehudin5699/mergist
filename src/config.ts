@@ -37,7 +37,7 @@ const defaultConfig: Config = {
 };
 
 export function getConfigPath(cwd: string = process.cwd()): string {
-  return resolve(cwd, '.mr-describerc');
+  return resolve(cwd, '.mergistrc');
 }
 
 export function loadConfig(cwd: string = process.cwd()): Config {

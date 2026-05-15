@@ -13,7 +13,7 @@ program.name(pkg.name).description(pkg.description).version(pkg.version);
 
 program
   .command('init')
-  .description('Initialize mr-describe in your project')
+  .description('Initialize mergist in your project')
   .action(initAction);
 
 program

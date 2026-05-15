@@ -1,11 +1,11 @@
 {
-  "name": "mr-describe",
+  "name": "mergist",
   "version": "1.0.0",
-  "description": "AI-powered Merge Request description generator",
+  "description": "AI-powered merge request summary generator",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "mr-describe": "./dist/cli.js"
+    "mergist": "./dist/cli.js"
   },
   "files": [
     "dist",
@@ -30,18 +30,19 @@
     "openai",
     "cli",
     "automation",
-    "devops"
+    "devops",
+    "mergist"
   ],
   "author": "solehudin5699",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/solehudin5699/mr-describe.git"
+    "url": "git+https://github.com/solehudin5699/mergist.git"
   },
   "bugs": {
-    "url": "https://github.com/solehudin5699/mr-describe/issues"
+    "url": "https://github.com/solehudin5699/mergist/issues"
   },
-  "homepage": "https://github.com/solehudin5699/mr-describe#readme",
+  "homepage": "https://github.com/solehudin5699/mergist#readme",
   "dependencies": {
     "@clack/prompts": "^1.4.0",
     "axios": "^1.7.9",

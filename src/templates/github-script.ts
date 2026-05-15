@@ -19,7 +19,7 @@ export function generateGitHubScript(config: Config, lang: Language): string {
   const baseUrl = providerCfg.baseUrl || PROVIDER_PRESETS[providerKey]?.baseUrl || 'https://api.openai.com/v1';
 
   return `/**
- * generate-pr-desc.js
+ * generate.js — GitHub PR
  * Auto-generate GitHub PR description using ${providerKey}
  */
 

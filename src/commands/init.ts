@@ -148,14 +148,14 @@ export async function initAction(): Promise<void> {
     },
   };
 
-  const mrDescribeDir = resolve(cwd, '.mr-describe', platform);
-  mkdirSync(mrDescribeDir, { recursive: true });
+  const mergistDir = resolve(cwd, '.mergist', platform);
+  mkdirSync(mergistDir, { recursive: true });
 
   const type = platform === 'gitlab' ? 'mr' : 'pr';
   const template = buildTemplate(type, sections, lang);
 
   if (platform === 'gitlab') {
-    const gitlabScriptPath = resolve(mrDescribeDir, 'generate-mr-desc.js');
+    const gitlabScriptPath = resolve(mergistDir, 'generate.js');
     if (generateScript) {
       writeFileSync(gitlabScriptPath, generateGitLabScript(config, lang));
     } else if (existsSync(gitlabScriptPath)) {
@@ -163,19 +163,19 @@ export async function initAction(): Promise<void> {
     }
     writeFileSync(resolve(cwd, '.gitlab-ci.yml'), generateGitLabCI(generateScript));
   } else if (platform === 'github') {
-    const githubScriptPath = resolve(mrDescribeDir, 'generate-pr-desc.js');
+    const githubScriptPath = resolve(mergistDir, 'generate.js');
     if (generateScript) {
       writeFileSync(githubScriptPath, generateGitHubScript(config, lang));
     } else if (existsSync(githubScriptPath)) {
       rmSync(githubScriptPath);
     }
     mkdirSync(resolve(cwd, '.github', 'workflows'), { recursive: true });
-    writeFileSync(resolve(cwd, '.github', 'workflows', 'mr-describe.yml'), generateGitHubWorkflow(generateScript, config));
+    writeFileSync(resolve(cwd, '.github', 'workflows', 'mergist.yml'), generateGitHubWorkflow(generateScript, config));
   }
 
   saveConfig(config, cwd);
 
-  outro(`Successfully initialized mr-describe for ${platform}!`);
+  outro(`Successfully initialized mergist for ${platform}!`);
   console.log('Next steps:');
   console.log('1. Set your API key in CI secrets (AI_API_KEY)');
   console.log('2. Commit the generated files');

@@ -8,7 +8,7 @@ import { PROVIDER_PRESETS } from '../types.js';
 
 export async function generateAction(opts: { platform?: string }): Promise<void> {
   if (!existsSync(getConfigPath())) {
-    console.error('❌ No configuration found. Run `mr-describe init` first.');
+    console.error('❌ No configuration found. Run `mergist init` first.');
     process.exit(1);
   }
 
