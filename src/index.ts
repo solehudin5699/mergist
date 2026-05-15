@@ -1,4 +1,4 @@
-export { loadConfig, saveConfig, addPlatform, getConfigPath, getResolvedApiKey } from './config.js';
+export { loadConfig, saveConfig, addPlatform, getConfigPath } from './config.js';
 export { GitLabGenerator } from './generators/gitlab.js';
 export { GitHubGenerator } from './generators/github.js';
 export { OpenAIProvider } from './providers/index.js';

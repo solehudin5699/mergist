@@ -352,18 +352,6 @@ configCmd
 
 program.parse();
 
-function getApiKey(config: Config): string | null {
-  const provider = config.providers[config.aiProvider];
-  if (!provider?.apiKey) return null;
-
-  if (provider.apiKey.startsWith('env:')) {
-    const envVar = provider.apiKey.slice(4);
-    return process.env[envVar] || null;
-  }
-
-  return provider.apiKey;
-}
-
 function generateGitLabScript(config: Config, lang: Language): string {
   const systemMessage = buildSystemMessage('mr', lang);
   const generatedPrompt = buildPromptScriptTemplate('mr', lang);

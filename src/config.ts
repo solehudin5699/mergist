@@ -76,17 +76,3 @@ export function addPlatform(platform: Platform, cwd: string = process.cwd()): Co
   return config;
 }
 
-export function getResolvedApiKey(config: Config): string | null {
-  const provider = config.providers[config.aiProvider];
-
-  if (!provider?.apiKey) {
-    return null;
-  }
-
-  if (provider.apiKey.startsWith('env:')) {
-    const envVar = provider.apiKey.slice(4);
-    return process.env[envVar] || null;
-  }
-
-  return provider.apiKey;
-}
