@@ -1,18 +1,23 @@
-import { loadConfig } from '../config.js';
+import { existsSync } from 'fs';
+import { loadConfig, getConfigPath } from '../config.js';
 import { buildTemplate } from '../templates/default.js';
 import { GitLabGenerator } from '../generators/gitlab.js';
 import { GitHubGenerator } from '../generators/github.js';
 import { OpenAIProvider } from '../providers/openai.js';
-import type { Platform } from '../types.js';
 import { PROVIDER_PRESETS } from '../types.js';
 
-export async function generateAction(opts: { platform: string }): Promise<void> {
-  const platform = opts.platform as Platform;
+export async function generateAction(opts: { platform?: string }): Promise<void> {
+  if (!existsSync(getConfigPath())) {
+    console.error('❌ No configuration found. Run `mr-describe init` first.');
+    process.exit(1);
+  }
+
   const config = loadConfig();
+  const platform = opts.platform || config.platform;
 
   const providerKey = config.aiProvider || 'openai';
   const providerCfg = config.providers[providerKey] || { apiKey: 'env:AI_API_KEY', model: 'gpt-4o', baseUrl: '' };
-  const model = providerCfg.model || config.model || 'gpt-4o';
+  const model = providerCfg.model || 'gpt-4o';
   const baseUrl = providerCfg.baseUrl || PROVIDER_PRESETS[providerKey]?.baseUrl || 'https://api.openai.com/v1';
   const envKey = providerCfg.apiKey?.replace(/^env:/, '') || 'AI_API_KEY';
   const apiKey = process.env[envKey];

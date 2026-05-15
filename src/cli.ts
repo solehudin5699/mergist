@@ -19,7 +19,7 @@ program
 program
   .command('generate')
   .description('Generate MR/PR description (for CI)')
-  .option('-p, --platform <platform>', 'Platform (gitlab/github)', 'gitlab')
+  .option('-p, --platform <platform>', 'Platform (gitlab/github)')
   .action(generateAction);
 
 program.addCommand(configCommands);

@@ -12,7 +12,7 @@ generate-mr-description:
   variables:
     GIT_DEPTH: 0
   script:
-    - ${generateScript ? 'cd .mr-describe/gitlab && node generate-mr-desc.js' : 'npx mr-describe generate --platform gitlab'}
+    - ${generateScript ? 'cd .mr-describe/gitlab && node generate-mr-desc.js' : 'npx mr-describe generate -p gitlab'}
   allow_failure: true
 `;
 }
@@ -37,7 +37,7 @@ jobs:
 
       - name: Generate PR Description
         run: |
-          ${generateScript ? 'cd .mr-describe/github && node generate-pr-desc.js' : 'npx mr-describe generate --platform github'}
+          ${generateScript ? 'cd .mr-describe/github && node generate-pr-desc.js' : 'npx mr-describe generate -p github'}
         env:
           GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
           GITHUB_PR_NUMBER: \${{ github.event.number }}

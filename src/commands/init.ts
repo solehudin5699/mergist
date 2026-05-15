@@ -29,13 +29,15 @@ export async function initAction(): Promise<void> {
   const existingConfig = loadConfig(cwd);
   const configExists = existsSync(getConfigPath(cwd));
 
-  if (configExists && existingConfig.platforms.includes(platform)) {
+  let reinit = false;
+  if (configExists && existingConfig.platform === platform) {
     const reinitResult = await confirm({
       message: `Platform "${platform}" is already configured. Reinitialize?`,
       initialValue: false,
     });
     if (isCancel(reinitResult)) { outro('Cancelled.'); process.exit(0); }
     if (!reinitResult) { outro('Cancelled.'); process.exit(0); }
+    reinit = true;
   }
 
   const scriptResult = await confirm({
@@ -45,23 +47,15 @@ export async function initAction(): Promise<void> {
   if (isCancel(scriptResult)) process.exit(0);
   const generateScript = scriptResult as boolean;
 
-  let model = existingConfig.model;
+  let model = existingConfig.providers?.[existingConfig.aiProvider]?.model || '';
   let maxDiffChars = existingConfig.maxDiffChars;
   let lang: Language = existingConfig.lang;
   let aiProvider: AIProvider = existingConfig.aiProvider || 'openai';
   let apiBaseUrl = existingConfig.providers?.[aiProvider]?.baseUrl || '';
 
-  let reconfig = false;
-  if (configExists) {
-    const reconfigResult = await confirm({
-      message: '.mr-describerc already exists. Reconfigure?',
-      initialValue: false,
-    });
-    if (isCancel(reconfigResult)) process.exit(0);
-    reconfig = reconfigResult as boolean;
-  }
+  const shouldPrompt = !configExists || existingConfig.platform !== platform || reinit;
 
-  if (!configExists || reconfig) {
+  if (shouldPrompt) {
     const providerResult = await select({
       message: 'AI Provider',
       options: [
@@ -79,13 +73,6 @@ export async function initAction(): Promise<void> {
     model = preset.defaultModel;
     apiBaseUrl = existingConfig.providers?.[aiProvider]?.baseUrl || preset.baseUrl;
 
-    const modelResult = await text({
-      message: 'AI model',
-      initialValue: model,
-    });
-    if (isCancel(modelResult)) process.exit(0);
-    model = (modelResult as string).trim();
-
     if (aiProvider === 'custom') {
       const baseUrlResult = await text({
         message: 'API base URL',
@@ -94,6 +81,13 @@ export async function initAction(): Promise<void> {
       if (isCancel(baseUrlResult)) process.exit(0);
       apiBaseUrl = (baseUrlResult as string).trim() || 'https://api.openai.com/v1';
     }
+
+    const modelResult = await text({
+      message: 'AI model',
+      initialValue: model,
+    });
+    if (isCancel(modelResult)) process.exit(0);
+    model = (modelResult as string).trim();
 
     const maxDiffInput = await text({
       message: 'Max diff characters',
@@ -117,7 +111,7 @@ export async function initAction(): Promise<void> {
   let sections: Section[] = existingConfig.templates || ['summary', 'changes', 'testing', 'review', 'notes', 'references'];
   let autoUpdate = existingConfig.autoUpdate ?? true;
 
-  if (!configExists || reconfig) {
+  if (shouldPrompt) {
     const sectionResult = await multiselect({
       message: 'Pilih section template:',
       options: [
@@ -143,11 +137,8 @@ export async function initAction(): Promise<void> {
   }
 
   const config: Config = {
-    platforms: configExists
-      ? [...new Set([...existingConfig.platforms, platform])]
-      : [platform],
+    platform,
     aiProvider,
-    model,
     lang,
     maxDiffChars,
     autoUpdate,

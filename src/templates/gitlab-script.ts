@@ -12,7 +12,7 @@ export function generateGitLabScript(config: Config, lang: Language): string {
   const providerKey = config.aiProvider || 'openai';
   const providerCfg = config.providers[providerKey] || { apiKey: 'env:AI_API_KEY', baseUrl: '', model: '' };
   const envVarName = providerCfg.apiKey?.replace(/^env:/, '') || 'AI_API_KEY';
-  const model = providerCfg.model || config.model || 'gpt-4o';
+  const model = providerCfg.model || 'gpt-4o';
   const baseUrl = providerCfg.baseUrl || PROVIDER_PRESETS[providerKey]?.baseUrl || 'https://api.openai.com/v1';
 
   return `/**

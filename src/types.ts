@@ -25,9 +25,8 @@ export interface ProviderConfig {
 }
 
 export interface Config {
-  platforms: Platform[];
+  platform: Platform;
   aiProvider: AIProvider;
-  model: string;
   lang: Language;
   maxDiffChars: number;
   autoUpdate: boolean;

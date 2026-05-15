@@ -33,11 +33,12 @@ configCommands
   .action((key: string, value: string) => {
     const config = loadConfig();
 
-    if (key === 'platforms') {
-      const platforms = value.split(',').map((p) => p.trim()) as Platform[];
-      config.platforms = platforms.filter((p) => p === 'gitlab' || p === 'github');
-    } else if (key === 'model') {
-      config.model = value;
+    if (key === 'platform') {
+      if (value !== 'gitlab' && value !== 'github') {
+        console.error('❌ Platform must be "gitlab" or "github"');
+        process.exit(1);
+      }
+      config.platform = value as Platform;
     } else if (key === 'maxDiffChars') {
       config.maxDiffChars = parseInt(value, 10);
     } else if (key === 'aiProvider') {
@@ -74,7 +75,7 @@ configCommands
       }
     } else {
       console.error(`❌ Unknown key: ${key}`);
-      console.log('Available keys: platforms, model, maxDiffChars, aiProvider, lang, autoUpdate, templates');
+      console.log('Available keys: platform, maxDiffChars, aiProvider, lang, autoUpdate, templates');
       process.exit(1);
     }
 

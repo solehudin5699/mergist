@@ -12,9 +12,8 @@ const providerConfigSchema = z.object({
 });
 
 const configSchema = z.object({
-  platforms: z.array(z.enum(['gitlab', 'github'])),
+  platform: z.enum(['gitlab', 'github']).default('gitlab'),
   aiProvider: z.enum(['openai', 'deepseek', 'groq', 'custom']).default('openai'),
-  model: z.string().default('gpt-4o'),
   lang: z.enum(['id', 'en']).default('id'),
   maxDiffChars: z.number().default(8000),
   autoUpdate: z.boolean().default(true),
@@ -23,9 +22,8 @@ const configSchema = z.object({
 });
 
 const defaultConfig: Config = {
-  platforms: ['gitlab'],
+  platform: 'gitlab',
   aiProvider: 'openai',
-  model: 'gpt-4o',
   lang: 'id',
   maxDiffChars: 8000,
   autoUpdate: true,
@@ -65,14 +63,5 @@ export function saveConfig(config: Config, cwd: string = process.cwd()): void {
   writeFileSync(configPath, JSON.stringify(validated, null, 2));
 }
 
-export function addPlatform(platform: Platform, cwd: string = process.cwd()): Config {
-  const config = loadConfig(cwd);
 
-  if (!config.platforms.includes(platform)) {
-    config.platforms.push(platform);
-    saveConfig(config, cwd);
-  }
-
-  return config;
-}
 
