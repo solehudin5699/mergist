@@ -1,5 +1,5 @@
 export type Lang = 'id' | 'en';
-type PromptType = 'mr' | 'pr';
+export type PromptType = 'mr' | 'pr';
 
 const translations: Record<Lang, {
   system: string;

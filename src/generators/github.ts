@@ -1,6 +1,8 @@
 import axios from 'axios';
-import type { PRInfo, AIProviderInterface, Language } from '../types.js';
+import type { PRInfo, AIProviderInterface, Language, Section } from '../types.js';
+import { HUMAN_SECTIONS } from '../types.js';
 import { buildUserPrompt, buildSystemMessage } from '../prompts.js';
+import { splitSections } from '../templates/default.js';
 
 interface PRFile {
   filename: string;
@@ -19,6 +21,8 @@ export class GitHubGenerator {
   private aiProvider: AIProviderInterface;
   private template: string;
   private lang: Language;
+  private sections: Section[];
+  private autoUpdate: boolean;
 
   constructor(
     token: string,
@@ -29,6 +33,8 @@ export class GitHubGenerator {
     aiProvider: AIProviderInterface,
     template: string,
     lang: Language = 'id',
+    sections: Section[] = ['summary', 'changes', 'testing', 'review', 'notes', 'references'],
+    autoUpdate: boolean = true,
   ) {
     this.token = token;
     this.owner = owner;
@@ -38,6 +44,8 @@ export class GitHubGenerator {
     this.aiProvider = aiProvider;
     this.template = template;
     this.lang = lang;
+    this.sections = sections;
+    this.autoUpdate = autoUpdate;
   }
 
   private getHeaders() {
@@ -82,11 +90,30 @@ export class GitHubGenerator {
     );
   }
 
+  private preserveHumanSections(newDesc: string, existingDesc: string): string {
+    const newSections = splitSections(newDesc);
+    const existingSections = splitSections(existingDesc);
+
+    for (const section of this.sections) {
+      if (HUMAN_SECTIONS.includes(section) && existingSections[section]) {
+        newSections[section] = existingSections[section];
+      }
+    }
+
+    return this.sections.map(s => {
+      const content = newSections[s];
+      return content
+        ? `<!-- SECTION:${s} -->\n${content}\n<!-- ENDSECTION:${s} -->`
+        : `<!-- SECTION:${s} -->\n-<!-- ENDSECTION:${s} -->`;
+    }).join('\n\n');
+  }
+
   async generate(): Promise<void> {
     const prInfo = await this.getPRInfo();
+    const hasDescription = prInfo.body?.trim().length > 0;
 
-    if (prInfo.body && prInfo.body.trim().length > 0) {
-      console.log('[PR Generator] Deskripsi PR sudah diisi, dilewati.');
+    if (hasDescription && !this.autoUpdate) {
+      console.log('[PR Generator] Deskripsi PR sudah ada, autoUpdate=false, dilewati.');
       return;
     }
 
@@ -98,9 +125,13 @@ export class GitHubGenerator {
 
     const prompt = buildUserPrompt('pr', prInfo.title, this.template, this.lang);
     const systemMessage = buildSystemMessage('pr', this.lang);
-
     const description = await this.aiProvider.generate(prompt, diff, systemMessage);
-    await this.updatePRDescription(description);
+
+    const finalDescription = hasDescription
+      ? this.preserveHumanSections(description, prInfo.body)
+      : description;
+
+    await this.updatePRDescription(finalDescription);
 
     console.log(`[PR Generator] ✓ Deskripsi PR berhasil diupdate!`);
     console.log(`[PR Generator] PR: ${prInfo.html_url}`);

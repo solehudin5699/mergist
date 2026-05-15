@@ -1,6 +1,10 @@
 export type Platform = 'gitlab' | 'github';
 export type AIProvider = 'openai';
 export type Language = 'id' | 'en';
+export type Section = 'summary' | 'changes' | 'testing' | 'review' | 'notes' | 'references';
+
+export const AI_SECTIONS: Section[] = ['summary', 'changes', 'testing', 'review'];
+export const HUMAN_SECTIONS: Section[] = ['notes', 'references'];
 
 export interface ProviderConfig {
   apiKey: string;
@@ -14,6 +18,8 @@ export interface Config {
   model: string;
   lang: Language;
   maxDiffChars: number;
+  autoUpdate: boolean;
+  templates: Section[];
   providers: {
     openai?: ProviderConfig;
   };

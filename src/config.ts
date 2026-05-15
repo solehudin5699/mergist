@@ -3,6 +3,8 @@ import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import type { Config, Platform } from './types.js';
 
+const sectionSchema = z.enum(['summary', 'changes', 'testing', 'review', 'notes', 'references']);
+
 const providerConfigSchema = z.object({
   apiKey: z.string(),
   model: z.string().optional(),
@@ -15,6 +17,8 @@ const configSchema = z.object({
   model: z.string().default('gpt-4o'),
   lang: z.enum(['id', 'en']).default('id'),
   maxDiffChars: z.number().default(8000),
+  autoUpdate: z.boolean().default(true),
+  templates: z.array(sectionSchema).default(['summary', 'changes', 'testing', 'review', 'notes', 'references']),
   providers: z.object({
     openai: providerConfigSchema.optional(),
   }),
@@ -26,6 +30,8 @@ const defaultConfig: Config = {
   model: 'gpt-4o',
   lang: 'id',
   maxDiffChars: 8000,
+  autoUpdate: true,
+  templates: ['summary', 'changes', 'testing', 'review', 'notes', 'references'],
   providers: {
     openai: {
       apiKey: 'env:OPENAI_API_KEY',

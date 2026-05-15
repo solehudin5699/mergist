@@ -5,14 +5,14 @@ import { existsSync, mkdirSync, rmSync, writeFileSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
-import { intro, outro, select, confirm, text, isCancel } from '@clack/prompts';
+import { intro, outro, select, confirm, text, multiselect, isCancel } from '@clack/prompts';
 import { loadConfig, saveConfig, getConfigPath } from './config.js';
-import { defaultTemplate, githubTemplate } from './templates/default.js';
+import { buildTemplate } from './templates/default.js';
 import { buildSystemMessage, buildPromptScriptTemplate } from './prompts.js';
 import { GitLabGenerator } from './generators/gitlab.js';
 import { GitHubGenerator } from './generators/github.js';
 import { OpenAIProvider } from './providers/openai.js';
-import type { Platform, Language, Config } from './types.js';
+import type { Platform, Language, Config, Section } from './types.js';
 
 const program = new Command();
 
@@ -96,6 +96,34 @@ program
       lang = langResult as Language;
     }
 
+    let sections: Section[] = existingConfig.templates || ['summary', 'changes', 'testing', 'review', 'notes', 'references'];
+    let autoUpdate = existingConfig.autoUpdate ?? true;
+
+    if (!configExists || reconfig) {
+      const sectionResult = await multiselect({
+        message: 'Pilih section template:',
+        options: [
+          { value: 'summary', label: 'Ringkasan', hint: 'Deskripsi singkat MR/PR' },
+          { value: 'changes', label: 'Daftar Perubahan', hint: 'Fitur, perbaikan, removals' },
+          { value: 'testing', label: 'Testing', hint: 'Checklist testing' },
+          { value: 'review', label: 'AI Review', hint: 'Analisis kode oleh AI' },
+          { value: 'notes', label: 'Catatan', hint: 'Catatan developer (manual)' },
+          { value: 'references', label: 'Referensi', hint: 'Link issue/ticket (manual)' },
+        ],
+        required: true,
+        initialValues: sections,
+      });
+      if (isCancel(sectionResult)) process.exit(0);
+      sections = sectionResult as Section[];
+
+      const autoUpdateResult = await confirm({
+        message: 'Auto-update description when new commits pushed?',
+        initialValue: autoUpdate,
+      });
+      if (isCancel(autoUpdateResult)) process.exit(0);
+      autoUpdate = autoUpdateResult as boolean;
+    }
+
     const config: Config = {
       platforms: configExists
         ? [...new Set([...existingConfig.platforms, platform])]
@@ -104,6 +132,8 @@ program
       model,
       lang,
       maxDiffChars,
+      autoUpdate,
+      templates: sections,
       providers: {
         openai: { apiKey: 'env:OPENAI_API_KEY', model },
       },
@@ -111,6 +141,9 @@ program
 
     const mrDescribeDir = resolve(cwd, '.mr-describe', platform);
     mkdirSync(mrDescribeDir, { recursive: true });
+
+    const type = platform === 'gitlab' ? 'mr' : 'pr';
+    const template = buildTemplate(type, sections, lang);
 
     if (platform === 'gitlab') {
       const gitlabScriptPath = resolve(mrDescribeDir, 'generate-mr-desc.js');
@@ -120,8 +153,8 @@ program
         rmSync(gitlabScriptPath);
       }
       writeFileSync(resolve(cwd, '.gitlab-ci.yml'), generateGitLabCI(generateScript));
-      mkdirSync(resolve(cwd, '.gitlab', 'merge_request_templates'), { recursive: true });
-      writeFileSync(resolve(cwd, '.gitlab', 'merge_request_templates', 'Default.md'), defaultTemplate);
+      // mkdirSync(resolve(cwd, '.gitlab', 'merge_request_templates'), { recursive: true });
+      // writeFileSync(resolve(cwd, '.gitlab', 'merge_request_templates', 'Default.md'), template);
     } else if (platform === 'github') {
       const githubScriptPath = resolve(mrDescribeDir, 'generate-pr-desc.js');
       if (generateScript) {
@@ -131,8 +164,8 @@ program
       }
       mkdirSync(resolve(cwd, '.github', 'workflows'), { recursive: true });
       writeFileSync(resolve(cwd, '.github', 'workflows', 'mr-describe.yml'), generateGitHubWorkflow(generateScript));
-      mkdirSync(resolve(cwd, '.github'), { recursive: true });
-      writeFileSync(resolve(cwd, '.github', 'PULL_REQUEST_TEMPLATE.md'), githubTemplate);
+      // mkdirSync(resolve(cwd, '.github'), { recursive: true });
+      // writeFileSync(resolve(cwd, '.github', 'PULL_REQUEST_TEMPLATE.md'), template);
     }
 
     saveConfig(config, cwd);
@@ -160,7 +193,8 @@ program
 
     const provider = new OpenAIProvider(apiKey, config.providers.openai?.model || 'gpt-4o');
 
-    const template = platform === 'gitlab' ? defaultTemplate : githubTemplate;
+    const type = platform === 'gitlab' ? 'mr' : 'pr';
+    const template = buildTemplate(type, config.templates || ['summary', 'changes', 'testing', 'review', 'notes', 'references'], config.lang);
 
     if (platform === 'gitlab') {
       const token = process.env.GITLAB_TOKEN;
@@ -173,7 +207,7 @@ program
         process.exit(1);
       }
 
-      const generator = new GitLabGenerator(token, projectId, mrIid, baseUrl, provider, template, config.lang);
+      const generator = new GitLabGenerator(token, projectId, mrIid, baseUrl, provider, template, config.lang, config.templates, config.autoUpdate);
       await generator.generate();
     } else if (platform === 'github') {
       const token = process.env.GITHUB_TOKEN;
@@ -187,7 +221,7 @@ program
         process.exit(1);
       }
 
-      const generator = new GitHubGenerator(token, owner, repo, prNumber, 'https://api.github.com', provider, template, config.lang);
+      const generator = new GitHubGenerator(token, owner, repo, prNumber, 'https://api.github.com', provider, template, config.lang, config.templates, config.autoUpdate);
       await generator.generate();
     }
   });
@@ -242,9 +276,28 @@ configCmd
         process.exit(1);
       }
       config.lang = value as Language;
+    } else if (key === 'autoUpdate') {
+      if (value !== 'true' && value !== 'false') {
+        console.error('❌ autoUpdate must be "true" or "false"');
+        process.exit(1);
+      }
+      config.autoUpdate = value === 'true';
+    } else if (key === 'templates') {
+      try {
+        const parsed = JSON.parse(value) as string[];
+        const validSections: Section[] = ['summary', 'changes', 'testing', 'review', 'notes', 'references'];
+        config.templates = parsed.filter(s => validSections.includes(s as Section)) as Section[];
+        if (config.templates.length === 0) {
+          console.error('❌ At least one valid section required');
+          process.exit(1);
+        }
+      } catch {
+        console.error('❌ templates must be a JSON array, e.g. ["summary","changes","testing"]');
+        process.exit(1);
+      }
     } else {
       console.error(`❌ Unknown key: ${key}`);
-      console.log('Available keys: platforms, model, maxDiffChars, aiProvider, lang');
+      console.log('Available keys: platforms, model, maxDiffChars, aiProvider, lang, autoUpdate, templates');
       process.exit(1);
     }
 
@@ -269,6 +322,9 @@ function getApiKey(config: Config): string | null {
 function generateGitLabScript(config: Config, lang: Language): string {
   const systemMessage = buildSystemMessage('mr', lang);
   const generatedPrompt = buildPromptScriptTemplate('mr', lang);
+  const sections = config.templates || ['summary', 'changes', 'testing', 'review', 'notes', 'references'];
+  const type = 'mr';
+  const template = buildTemplate(type, sections, lang);
 
   return `/**
  * generate-mr-desc.js
@@ -283,12 +339,45 @@ const MODEL = '${config.model}';
 const MAX_DIFF_CHARS = ${config.maxDiffChars};
 const SYSTEM_MESSAGE = ${JSON.stringify(systemMessage)};
 
-const TEMPLATE = \`${defaultTemplate.replace(/`/g, '\\`')}\`;
+const SECTIONS = ${JSON.stringify(sections)};
+const AI_SECTIONS = ['summary', 'changes', 'testing', 'review'];
+const HUMAN_SECTIONS = ['notes', 'references'];
+const AUTO_UPDATE = ${config.autoUpdate};
+
+const TEMPLATE = \`${template.replace(/`/g, '\\`')}\`;
+
+function splitSections(description) {
+  const sections = {};
+  const re = /<!-- SECTION:(\\w+) -->\\n?([\\s\\S]*?)\\n?<!-- ENDSECTION:\\1 -->/g;
+  let match;
+  while ((match = re.exec(description)) !== null) {
+    sections[match[1]] = match[2].trim();
+  }
+  return sections;
+}
+
+function preserveHumanSections(newDesc, existingDesc) {
+  const newSections = splitSections(newDesc);
+  const existingSections = splitSections(existingDesc);
+  for (const section of SECTIONS) {
+    if (HUMAN_SECTIONS.includes(section) && existingSections[section]) {
+      newSections[section] = existingSections[section];
+    }
+  }
+  return SECTIONS.map(s => {
+    const content = newSections[s];
+    return content
+      ? \`<!-- SECTION:\${s} -->\\n\${content}\\n<!-- ENDSECTION:\${s} -->\`
+      : \`<!-- SECTION:\${s} -->\\n-<!-- ENDSECTION:\${s} -->\`;
+  }).join('\\n\\n');
+}
 
 function httpRequest(url, options, body = null) {
   return new Promise((resolve, reject) => {
     const payload = body ? JSON.stringify(body) : null;
-    const req = https.request(url, { ...options, headers: { ...options.headers, 'Content-Length': Buffer.byteLength(payload) } }, (res) => {
+    const headers = { ...options.headers };
+    if (payload) headers['Content-Length'] = Buffer.byteLength(payload);
+    const req = https.request(url, { ...options, headers }, (res) => {
       let data = '';
       res.on('data', (chunk) => data += chunk);
       res.on('end', () => {
@@ -338,13 +427,20 @@ async function callAI(prompt, diff) {
 async function main() {
   console.log('[MR Generator] Memulai...');
   const mrInfo = await getMRInfo();
-  if (mrInfo.description?.trim()) { console.log('[MR Generator] Deskripsi sudah ada, dilewati.'); return; }
+  const hasDesc = mrInfo.description?.trim().length > 0;
+
+  if (hasDesc && !AUTO_UPDATE) { console.log('[MR Generator] Deskripsi sudah ada, autoUpdate=false, dilewati.'); return; }
+
   const diff = await getMRDiff();
   if (!diff.trim()) { console.log('[MR Generator] Tidak ada diff, dilewati.'); return; }
+  const title = mrInfo.title;
+  const template = TEMPLATE;
   const prompt = \`${generatedPrompt}\`;
   const desc = await callAI(prompt, diff);
-  await updateMRDescription(desc);
-  console.log('[MR Generator] ✓ Deskripsi berhasil diupdate!');
+
+  const finalDesc = hasDesc ? preserveHumanSections(desc, mrInfo.description) : desc;
+  await updateMRDescription(finalDesc);
+  console.log('[MR Generator] ✓ Deskripsi MR berhasil diupdate!');
 }
 
 main().catch(err => { console.error('[MR Generator] ✗', err.message); process.exit(0); });`;
@@ -370,6 +466,9 @@ generate-mr-description:
 function generateGitHubScript(config: Config, lang: Language): string {
   const systemMessage = buildSystemMessage('pr', lang);
   const generatedPrompt = buildPromptScriptTemplate('pr', lang);
+  const sections = config.templates || ['summary', 'changes', 'testing', 'review', 'notes', 'references'];
+  const type = 'pr';
+  const template = buildTemplate(type, sections, lang);
 
   return `/**
  * generate-pr-desc.js
@@ -385,12 +484,45 @@ const MODEL = '${config.model}';
 const MAX_DIFF_CHARS = ${config.maxDiffChars};
 const SYSTEM_MESSAGE = ${JSON.stringify(systemMessage)};
 
-const TEMPLATE = \`${githubTemplate.replace(/`/g, '\\`')}\`;
+const SECTIONS = ${JSON.stringify(sections)};
+const AI_SECTIONS = ['summary', 'changes', 'testing', 'review'];
+const HUMAN_SECTIONS = ['notes', 'references'];
+const AUTO_UPDATE = ${config.autoUpdate};
+
+const TEMPLATE = \`${template.replace(/`/g, '\\`')}\`;
+
+function splitSections(description) {
+  const sections = {};
+  const re = /<!-- SECTION:(\\w+) -->\\n?([\\s\\S]*?)\\n?<!-- ENDSECTION:\\1 -->/g;
+  let match;
+  while ((match = re.exec(description)) !== null) {
+    sections[match[1]] = match[2].trim();
+  }
+  return sections;
+}
+
+function preserveHumanSections(newDesc, existingDesc) {
+  const newSections = splitSections(newDesc);
+  const existingSections = splitSections(existingDesc);
+  for (const section of SECTIONS) {
+    if (HUMAN_SECTIONS.includes(section) && existingSections[section]) {
+      newSections[section] = existingSections[section];
+    }
+  }
+  return SECTIONS.map(s => {
+    const content = newSections[s];
+    return content
+      ? \`<!-- SECTION:\${s} -->\\n\${content}\\n<!-- ENDSECTION:\${s} -->\`
+      : \`<!-- SECTION:\${s} -->\\n-<!-- ENDSECTION:\${s} -->\`;
+  }).join('\\n\\n');
+}
 
 function httpRequest(url, options, body = null) {
   return new Promise((resolve, reject) => {
     const payload = body ? JSON.stringify(body) : null;
-    const req = https.request(url, { ...options, headers: { ...options.headers, 'Content-Length': Buffer.byteLength(payload) } }, (res) => {
+    const headers = { ...options.headers };
+    if (payload) headers['Content-Length'] = Buffer.byteLength(payload);
+    const req = https.request(url, { ...options, headers }, (res) => {
       let data = '';
       res.on('data', (chunk) => data += chunk);
       res.on('end', () => {
@@ -441,13 +573,20 @@ async function callAI(prompt, diff) {
 async function main() {
   console.log('[PR Generator] Memulai...');
   const prInfo = await getPRInfo();
-  if (prInfo.body?.trim()) { console.log('[PR Generator] Deskripsi sudah ada, dilewati.'); return; }
+  const hasDesc = prInfo.body?.trim().length > 0;
+
+  if (hasDesc && !AUTO_UPDATE) { console.log('[PR Generator] Deskripsi sudah ada, autoUpdate=false, dilewati.'); return; }
+
   const diff = await getPRDiff();
   if (!diff.trim()) { console.log('[PR Generator] Tidak ada diff, dilewati.'); return; }
+  const title = prInfo.title;
+  const template = TEMPLATE;
   const prompt = \`${generatedPrompt}\`;
   const desc = await callAI(prompt, diff);
-  await updatePRDescription(desc);
-  console.log('[PR Generator] ✓ Deskripsi berhasil diupdate!');
+
+  const finalDesc = hasDesc ? preserveHumanSections(desc, prInfo.body) : desc;
+  await updatePRDescription(finalDesc);
+  console.log('[PR Generator] ✓ Deskripsi PR berhasil diupdate!');
 }
 
 main().catch(err => { console.error('[PR Generator] ✗', err.message); process.exit(0); });`;
