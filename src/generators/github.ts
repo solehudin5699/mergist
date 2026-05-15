@@ -3,6 +3,9 @@ import type { PRInfo, AIProviderInterface, Language, Section } from '../types.js
 import { HUMAN_SECTIONS } from '../types.js';
 import { buildUserPrompt, buildSystemMessage } from '../prompts.js';
 import { splitSections, wrapInMarkers } from '../templates/default.js';
+import pkg from '../../package.json' with { type: 'json' };
+
+const USER_AGENT = `${pkg.name}/${pkg.version}`;
 
 interface PRFile {
   filename: string;
@@ -53,6 +56,7 @@ export class GitHubGenerator {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${this.token}`,
       Accept: 'application/vnd.github.v3+json',
+      'User-Agent': USER_AGENT,
     };
   }
 

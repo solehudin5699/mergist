@@ -697,7 +697,7 @@ function httpRequest(url, options, body = null) {
 async function getPRInfo() {
   const res = await httpRequest(\`https://api.github.com/repos/\${OWNER}/\${REPO}/pulls/\${GITHUB_PR_NUMBER}\`, {
     method: 'GET',
-    headers: { 'Authorization': \`Bearer \${GITHUB_TOKEN}\`, 'Accept': 'application/vnd.github.v3+json' }
+    headers: { 'Authorization': \`Bearer \${GITHUB_TOKEN}\`, 'Accept': 'application/vnd.github.v3+json', 'User-Agent': '${pkg.name}/${pkg.version}' }
   });
   if (res.status !== 200) throw new Error(\`Failed to get PR info (HTTP \${res.status})\`);
   return res.body;
@@ -706,7 +706,7 @@ async function getPRInfo() {
 async function getPRDiff() {
   const res = await httpRequest(\`https://api.github.com/repos/\${OWNER}/\${REPO}/pulls/\${GITHUB_PR_NUMBER}/files\`, {
     method: 'GET',
-    headers: { 'Authorization': \`Bearer \${GITHUB_TOKEN}\`, 'Accept': 'application/vnd.github.v3+json' }
+    headers: { 'Authorization': \`Bearer \${GITHUB_TOKEN}\`, 'Accept': 'application/vnd.github.v3+json', 'User-Agent': '${pkg.name}/${pkg.version}' }
   });
   if (res.status !== 200) throw new Error(\`Failed to get PR diff (HTTP \${res.status})\`);
   return res.body.map(f => f.patch ? \`--- \${f.filename}\\n+++ \${f.filename}\\n\${f.patch}\` : '').filter(Boolean).join('\\n\\n');
@@ -715,7 +715,7 @@ async function getPRDiff() {
 async function updatePRDescription(desc) {
   await httpRequest(\`https://api.github.com/repos/\${OWNER}/\${REPO}/pulls/\${GITHUB_PR_NUMBER}\`, {
     method: 'PATCH',
-    headers: { 'Authorization': \`Bearer \${GITHUB_TOKEN}\`, 'Accept': 'application/vnd.github.v3+json' }
+    headers: { 'Authorization': \`Bearer \${GITHUB_TOKEN}\`, 'Accept': 'application/vnd.github.v3+json', 'User-Agent': '${pkg.name}/${pkg.version}' }
   }, { body: desc });
 }
 
@@ -778,6 +778,7 @@ jobs:
           ${generateScript ? 'cd .mr-describe/github && node generate-pr-desc.js' : 'npx mr-describe generate --platform github'}
         env:
           GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+          GITHUB_PR_NUMBER: \${{ github.event.number }}
           ${envVarName}: \${{ secrets.${envVarName} }}
 `;
 }
