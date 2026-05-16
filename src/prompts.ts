@@ -24,7 +24,7 @@ const translations: Record<Lang, {
   system: string;
   task: string;
   rules: string;
-  instructions: [string, string, string, string, string, string, string];
+  instructions: [string, string, string, string, string, string, string, string, string];
   title: string;
   template: string;
 }> = {
@@ -35,11 +35,13 @@ const translations: Record<Lang, {
     instructions: [
       'Gunakan bahasa Indonesia',
       'Isi setiap section berdasarkan perubahan nyata di diff',
+      'Untuk section Daftar Perubahan, tulis setiap perubahan sebagai flat list:\n- ✨ **Add** — Menambah <deskripsi> (<file:line>)\n- 🔧 **Change** — Mengubah/Memperbaiki <deskripsi> (<file:line>)\n- 🔥 **Remove** — Menghapus <deskripsi> (<file:line>)\nGunakan kata kerja aktif yang sesuai (Menambah, Mengubah, Memperbaiki, Menghapus, Memindahkan, Mengganti, dll)',
       'Jika tidak ada perubahan untuk suatu section, tulis hanya tanda "-"',
       'Untuk section Testing, tambahkan checklist spesifik berdasarkan perubahan',
-      'Untuk section AI Review, berikan analisis teknis dengan format berikut:\n- 🔴 **High**: Masalah keamanan, hardcoded secrets, critical bugs (sertakan file:line)\n- 🟡 **Medium**: Code smells, error handling, performance concerns (sertakan file:line)\n- 🟢 **Info**: Best practices, naming suggestions, minor improvements',
+      'Untuk section AI Review, tulis analisis dengan struktur berikut:\nBaris pertama: ringkasan singkat kualitas perubahan secara umum\nKemudian temuan dalam format flat list:\n- 🔴 **Risk** — <masalah> di <file:line>. <saran perbaikan>\n- 🟡 **Warn** — <masalah> di <file:line>. <saran perbaikan>\n- 🔵 **Suggestion** — <masalah/saran> di <file:line>. <penjelasan>\n- 🟢 **Good** — <kode bagus> di <file:line>. <alasan>\nJika tidak ada temuan untuk suatu kategori, lewati (jangan ditulis)\nWajib menyebutkan: file dengan perubahan terbanyak dan 1 potensi risiko tertinggi',
       'Hanya isi section __AI_SECTIONS__. Biarkan __HUMAN_SECTIONS__ apa adanya',
       'Kembalikan HANYA template yang sudah diisi, tanpa penjelasan tambahan',
+      'Untuk section Referensi, biarkan kosong — diisi manual oleh developer, reviewer, atau lainnya terkait issue links, tickets, documentation, dll',
     ],
     title: 'Judul __SHORT_LABEL__: "__TITLE__"',
     template: 'TEMPLATE YANG HARUS DIISI:\n__TEMPLATE__',
@@ -51,11 +53,13 @@ const translations: Record<Lang, {
     instructions: [
       'Use English',
       'Fill each section based on actual changes in the diff',
+      'For Changes section, write each change as a flat list:\n- ✨ **Add** — Add <description> (<file:line>)\n- 🔧 **Change** — Change/Fix <description> (<file:line>)\n- 🔥 **Remove** — Remove <description> (<file:line>)\nUse active verbs (Add, Change, Fix, Remove, Move, Replace, etc)',
       'If no changes for a section, write only "-"',
       'For Testing section, add specific checklist based on changes',
-      'For AI Review section, provide technical analysis with the following format:\n- 🔴 **High**: Security issues, hardcoded secrets, critical bugs (include file:line)\n- 🟡 **Medium**: Code smells, error handling, performance concerns (include file:line)\n- 🟢 **Info**: Best practices, naming suggestions, minor improvements',
+      'For AI Review section, write analysis with the following structure:\nFirst line: brief summary of overall change quality\nThen findings as a flat list:\n- 🔴 **Risk** — <issue> at <file:line>. <fix suggestion>\n- 🟡 **Warn** — <issue> at <file:line>. <fix suggestion>\n- 🔵 **Suggestion** — <issue/suggestion> at <file:line>. <explanation>\n- 🟢 **Good** — <good code> at <file:line>. <reason>\nIf no findings for a category, skip it (do not write it)\nMust mention: file with most changes and 1 highest potential risk',
       'Only fill sections: __AI_SECTIONS__. Leave __HUMAN_SECTIONS__ as-is',
       'Return ONLY the filled template, without additional explanation',
+      'For References section, leave empty — filled manually by developer, reviewer, or others for issue links, tickets, documentation, etc',
     ],
     title: '__SHORT_LABEL__ Title: "__TITLE__"',
     template: 'TEMPLATE TO FILL:\n__TEMPLATE__',

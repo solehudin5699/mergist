@@ -63,7 +63,7 @@ configCommands
     } else if (key === 'templates') {
       try {
         const parsed = JSON.parse(value) as string[];
-        const validSections: Section[] = ['summary', 'changes', 'testing', 'review', 'notes', 'references'];
+        const validSections: Section[] = ['summary', 'changes', 'review', 'testing', 'notes', 'references'];
         config.templates = parsed.filter(s => validSections.includes(s as Section)) as Section[];
         if (config.templates.length === 0) {
           console.error('❌ At least one valid section required');

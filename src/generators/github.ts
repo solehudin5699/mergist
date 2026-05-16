@@ -36,7 +36,7 @@ export class GitHubGenerator {
     aiProvider: AIProviderInterface,
     template: string,
     lang: Language = 'id',
-    sections: Section[] = ['summary', 'changes', 'testing', 'review', 'notes', 'references'],
+    sections: Section[] = ['summary', 'changes', 'review', 'testing', 'notes', 'references'],
     autoUpdate: boolean = true,
   ) {
     this.token = token;

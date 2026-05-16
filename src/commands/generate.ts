@@ -29,7 +29,7 @@ export async function generateAction(opts: { platform?: string }): Promise<void>
   const provider = new OpenAIProvider(apiKey, model, baseUrl);
 
   const type = platform === 'gitlab' ? 'mr' : 'pr';
-  const template = buildTemplate(type, config.templates || ['summary', 'changes', 'testing', 'review', 'notes', 'references'], config.lang);
+  const template = buildTemplate(type, config.templates || ['summary', 'changes', 'review', 'testing', 'notes', 'references'], config.lang);
 
   if (platform === 'gitlab') {
     const token = process.env.GITLAB_TOKEN;

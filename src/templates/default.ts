@@ -4,15 +4,6 @@ import type { PromptType } from '../prompts.js';
 type Lang = Language;
 type RenderFn = (lang: Lang, type: PromptType) => string;
 
-function renderSub(lang: Lang, sub: 'features' | 'fixes' | 'removals'): string {
-  const labels: Record<string, Record<Lang, string>> = {
-    features: { id: '### Fitur Baru', en: '### Features' },
-    fixes: { id: '### Perbaikan & Perubahan', en: '### Fixes & Changes' },
-    removals: { id: '### Yang Dihapus', en: '### Removals' },
-  };
-  return `${labels[sub][lang]}\n-`;
-}
-
 const sectionRenderers: Record<Section, RenderFn> = {
   summary: (lang, type) => {
     const headings: Record<Lang, string> = { id: '## Ringkasan', en: '## Summary' };
@@ -23,18 +14,19 @@ const sectionRenderers: Record<Section, RenderFn> = {
     };
     return `${headings[lang]}\n${comments[lang]}\n-`;
   },
-  changes: (lang, type) => {
-    const headings: Record<Lang, string> = { id: '## Daftar Perubahan', en: '## Changes' };
-    return [headings[lang], '', renderSub(lang, 'features'), renderSub(lang, 'fixes'), renderSub(lang, 'removals')].join('\n');
-  },
+  changes: (lang) => lang === 'id' ? '## Daftar Perubahan\n-' : '## Changes\n-',
   testing: (lang, type) => {
     return lang === 'id'
       ? '## Testing\n- [ ] Sudah ditest secara lokal\n- [ ] Tidak ada breaking change'
       : '## Testing\n- [ ] Tested locally\n- [ ] No breaking changes';
   },
-  review: () => '## AI Review\n\n### 🔴 High\n-\n\n### 🟡 Medium\n-\n\n### 🟢 Info\n-',
-  notes: (lang) => lang === 'id' ? '## Catatan\n-' : '## Notes\n-',
-  references: (lang) => lang === 'id' ? '## Referensi\nCloses #' : '## References\nCloses #',
+  review: () => '## AI Review\n-',
+  notes: (lang) => lang === 'id'
+    ? '## Catatan\nDiisi manual (oleh developer, reviewer, atau lainnya) untuk catatan tambahan, konteks implementasi, atau hal yang perlu diketahui'
+    : '## Notes\nFilled manually (by developer, reviewer, or others) for additional notes, implementation context, or things to note',
+  references: (lang) => lang === 'id'
+    ? '## Referensi\nDiisi manual (oleh developer, reviewer, atau lainnya) terkait issue links, tickets, documentation, dll'
+    : '## References\nFilled manually (by developer, reviewer, or others) for issue links, tickets, documentation, etc',
 };
 
 export function buildTemplate(type: PromptType, sections: Section[], lang: Lang): string {

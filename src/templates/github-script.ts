@@ -7,7 +7,7 @@ import { PROVIDER_PRESETS } from '../types.js';
 const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf-8'));
 
 export function generateGitHubScript(config: Config, lang: Language): string {
-  const sections = config.templates || ['summary', 'changes', 'testing', 'review', 'notes', 'references'];
+  const sections = config.templates || ['summary', 'changes', 'review', 'testing', 'notes', 'references'];
   const systemMessage = buildSystemMessage('pr', lang);
   const generatedPrompt = buildPromptScriptTemplate('pr', lang);
   const type = 'pr';

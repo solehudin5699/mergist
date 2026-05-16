@@ -4,7 +4,7 @@ import type { Config, Language } from '../types.js';
 import { PROVIDER_PRESETS } from '../types.js';
 
 export function generateGitLabScript(config: Config, lang: Language): string {
-  const sections = config.templates || ['summary', 'changes', 'testing', 'review', 'notes', 'references'];
+  const sections = config.templates || ['summary', 'changes', 'review', 'testing', 'notes', 'references'];
   const systemMessage = buildSystemMessage('mr', lang);
   const generatedPrompt = buildPromptScriptTemplate('mr', lang);
   const type = 'mr';

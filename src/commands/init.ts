@@ -108,7 +108,7 @@ export async function initAction(): Promise<void> {
     lang = langResult as Language;
   }
 
-  let sections: Section[] = existingConfig.templates || ['summary', 'changes', 'testing', 'review', 'notes', 'references'];
+  let sections: Section[] = existingConfig.templates || ['summary', 'changes', 'review', 'testing', 'notes', 'references'];
   let autoUpdate = existingConfig.autoUpdate ?? true;
 
   if (shouldPrompt) {
