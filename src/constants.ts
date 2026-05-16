@@ -1,6 +1,11 @@
 import { readFileSync } from 'fs';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
-const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
+const pkg = JSON.parse(readFileSync(
+  resolve(dirname(fileURLToPath(import.meta.url)), '..', 'package.json'),
+  'utf-8'
+));
 
 export const MAX_TOKENS = 4096;
 export const PKG_NAME: string = pkg.name;
