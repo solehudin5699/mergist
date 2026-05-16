@@ -4,9 +4,9 @@ import type { Config, Language } from '../types.js';
 import { PROVIDER_PRESETS } from '../types.js';
 
 export function generateGitLabScript(config: Config, lang: Language): string {
+  const sections = config.templates || ['summary', 'changes', 'testing', 'review', 'notes', 'references'];
   const systemMessage = buildSystemMessage('mr', lang);
   const generatedPrompt = buildPromptScriptTemplate('mr', lang);
-  const sections = config.templates || ['summary', 'changes', 'testing', 'review', 'notes', 'references'];
   const type = 'mr';
   const template = buildTemplate(type, sections, lang);
   const providerKey = config.aiProvider || 'openai';
@@ -47,7 +47,12 @@ const SECTION_HEADINGS = {
 };
 
 function wrapInMarkers(text, sections) {
-  if (text.includes('<!-- SECTION:')) return text;
+  if (text.includes('<!-- SECTION:')) {
+    const existing = splitSections(text);
+    return sections.map(s =>
+      \`<!-- SECTION:\${s} -->\\n\${existing[s] || '-'}\\n<!-- ENDSECTION:\${s} -->\`
+    ).join('\\n\\n');
+  }
   const parts = [];
   for (let i = 0; i < sections.length; i++) {
     const s = sections[i];
@@ -107,6 +112,22 @@ function preserveHumanSections(newDesc, existingDesc) {
     return content
       ? \`<!-- SECTION:\${s} -->\\n\${content}\\n<!-- ENDSECTION:\${s} -->\`
       : \`<!-- SECTION:\${s} -->\\n-<!-- ENDSECTION:\${s} -->\`;
+  }).join('\\n\\n');
+}
+
+function enrichHumanSections(desc) {
+  const sections = splitSections(desc);
+  const tmplSections = splitSections(TEMPLATE);
+  for (const s of HUMAN_SECTIONS) {
+    if (!sections[s] || sections[s] === '-') {
+      sections[s] = tmplSections[s];
+    }
+  }
+  return SECTIONS.map(s => {
+    const content = sections[s];
+    return content
+      ? \`<!-- SECTION:\${s} -->\\n\${content}\\n<!-- ENDSECTION:\${s} -->\`
+      : \`<!-- SECTION:\${s} -->\\n-\\n<!-- ENDSECTION:\${s} -->\`;
   }).join('\\n\\n');
 }
 
@@ -179,9 +200,10 @@ async function main() {
   const template = TEMPLATE;
   const prompt = \`${generatedPrompt}\`;
   const desc = await withRetry(() => callAI(prompt, diff));
-  const wrappedDesc = desc.includes('<!-- SECTION:') ? desc : wrapInMarkers(desc, SECTIONS);
+  const wrappedDesc = wrapInMarkers(desc, SECTIONS);
+  const enrichedDesc = enrichHumanSections(wrappedDesc);
 
-  const finalDesc = hasDesc ? preserveHumanSections(wrappedDesc, mrInfo.description) : wrappedDesc;
+  const finalDesc = hasDesc ? preserveHumanSections(enrichedDesc, mrInfo.description) : enrichedDesc;
   await updateMRDescription(finalDesc);
   console.log('[MR Generator] ✓ Deskripsi MR berhasil diupdate!');
 }

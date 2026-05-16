@@ -32,7 +32,7 @@ const sectionRenderers: Record<Section, RenderFn> = {
       ? '## Testing\n- [ ] Sudah ditest secara lokal\n- [ ] Tidak ada breaking change'
       : '## Testing\n- [ ] Tested locally\n- [ ] No breaking changes';
   },
-  review: () => '## AI Review\n-',
+  review: () => '## AI Review\n\n### 🔴 High\n-\n\n### 🟡 Medium\n-\n\n### 🟢 Info\n-',
   notes: (lang) => lang === 'id' ? '## Catatan\n-' : '## Notes\n-',
   references: (lang) => lang === 'id' ? '## Referensi\nCloses #' : '## References\nCloses #',
 };
@@ -65,7 +65,12 @@ const SECTION_HEADINGS: Record<Section, string[]> = {
 };
 
 export function wrapInMarkers(text: string, sections: Section[]): string {
-  if (text.includes('<!-- SECTION:')) return text;
+  if (text.includes('<!-- SECTION:')) {
+    const existing = splitSections(text);
+    return sections.map(s =>
+      `<!-- SECTION:${s} -->\n${existing[s] ?? '-'}\n<!-- ENDSECTION:${s} -->`
+    ).join('\n\n');
+  }
 
   const parts: string[] = [];
   for (let i = 0; i < sections.length; i++) {

@@ -1,8 +1,8 @@
 import axios from 'axios';
 import type { MRInfo, DiffFile, AIProviderInterface, Language, Section } from '../types.js';
-import { HUMAN_SECTIONS } from '../types.js';
+import { AI_SECTIONS, HUMAN_SECTIONS } from '../types.js';
 import { buildUserPrompt, buildSystemMessage } from '../prompts.js';
-import { splitSections, wrapInMarkers } from '../templates/default.js';
+import { buildTemplate, splitSections, wrapInMarkers } from '../templates/default.js';
 
 export class GitLabGenerator {
   private token: string;
@@ -92,6 +92,20 @@ export class GitLabGenerator {
     }).join('\n\n');
   }
 
+  private enrichHumanSections(desc: string): string {
+    const sections = splitSections(desc);
+    const tmpl = buildTemplate('mr', HUMAN_SECTIONS, this.lang);
+    const tmplSections = splitSections(tmpl);
+    for (const s of HUMAN_SECTIONS) {
+      if (!sections[s] || sections[s] === '-') {
+        sections[s] = tmplSections[s];
+      }
+    }
+    return this.sections.map(s =>
+      `<!-- SECTION:${s} -->\n${sections[s]}\n<!-- ENDSECTION:${s} -->`
+    ).join('\n\n');
+  }
+
   async generate(): Promise<void> {
     const mrInfo = await this.getMRInfo();
     const hasDescription = mrInfo.description?.trim().length > 0;
@@ -107,14 +121,17 @@ export class GitLabGenerator {
       return;
     }
 
-    const prompt = buildUserPrompt('mr', mrInfo.title, this.template, this.lang);
+    const aiSections = this.sections.filter(s => AI_SECTIONS.includes(s));
+    const humanSections = this.sections.filter(s => HUMAN_SECTIONS.includes(s));
+    const prompt = buildUserPrompt('mr', mrInfo.title, this.template, this.lang, aiSections, humanSections);
     const systemMessage = buildSystemMessage('mr', this.lang);
     const description = await this.aiProvider.generate(prompt, diff, systemMessage);
     const wrapped = wrapInMarkers(description, this.sections);
+    const enriched = this.enrichHumanSections(wrapped);
 
     const finalDescription = hasDescription
-      ? this.preserveHumanSections(wrapped, mrInfo.description)
-      : wrapped;
+      ? this.preserveHumanSections(enriched, mrInfo.description)
+      : enriched;
 
     await this.updateMRDescription(finalDescription);
 

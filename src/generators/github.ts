@@ -1,8 +1,8 @@
 import axios from 'axios';
 import type { PRInfo, AIProviderInterface, Language, Section } from '../types.js';
-import { HUMAN_SECTIONS } from '../types.js';
+import { AI_SECTIONS, HUMAN_SECTIONS } from '../types.js';
 import { buildUserPrompt, buildSystemMessage } from '../prompts.js';
-import { splitSections, wrapInMarkers } from '../templates/default.js';
+import { buildTemplate, splitSections, wrapInMarkers } from '../templates/default.js';
 import pkg from '../../package.json' with { type: 'json' };
 
 const USER_AGENT = `${pkg.name}/${pkg.version}`;
@@ -112,6 +112,20 @@ export class GitHubGenerator {
     }).join('\n\n');
   }
 
+  private enrichHumanSections(desc: string): string {
+    const sections = splitSections(desc);
+    const tmpl = buildTemplate('pr', HUMAN_SECTIONS, this.lang);
+    const tmplSections = splitSections(tmpl);
+    for (const s of HUMAN_SECTIONS) {
+      if (!sections[s] || sections[s] === '-') {
+        sections[s] = tmplSections[s];
+      }
+    }
+    return this.sections.map(s =>
+      `<!-- SECTION:${s} -->\n${sections[s]}\n<!-- ENDSECTION:${s} -->`
+    ).join('\n\n');
+  }
+
   async generate(): Promise<void> {
     const prInfo = await this.getPRInfo();
     const hasDescription = prInfo.body?.trim().length > 0;
@@ -127,14 +141,17 @@ export class GitHubGenerator {
       return;
     }
 
-    const prompt = buildUserPrompt('pr', prInfo.title, this.template, this.lang);
+    const aiSections = this.sections.filter(s => AI_SECTIONS.includes(s));
+    const humanSections = this.sections.filter(s => HUMAN_SECTIONS.includes(s));
+    const prompt = buildUserPrompt('pr', prInfo.title, this.template, this.lang, aiSections, humanSections);
     const systemMessage = buildSystemMessage('pr', this.lang);
     const description = await this.aiProvider.generate(prompt, diff, systemMessage);
     const wrapped = wrapInMarkers(description, this.sections);
+    const enriched = this.enrichHumanSections(wrapped);
 
     const finalDescription = hasDescription
-      ? this.preserveHumanSections(wrapped, prInfo.body)
-      : wrapped;
+      ? this.preserveHumanSections(enriched, prInfo.body)
+      : enriched;
 
     await this.updatePRDescription(finalDescription);
 
