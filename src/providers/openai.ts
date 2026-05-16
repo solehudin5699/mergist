@@ -1,5 +1,6 @@
 import axios from 'axios';
 import type { AIProviderInterface } from '../types.js';
+import { MAX_TOKENS } from '../constants.js';
 
 async function withRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
   for (let i = 0; i < retries; i++) {
@@ -21,7 +22,6 @@ export class OpenAIProvider implements AIProviderInterface {
   private apiKey: string;
   private model: string;
   private baseUrl: string;
-  private maxTokens: number = 1000;
 
   constructor(apiKey: string, model: string = 'gpt-4o', baseUrl: string = 'https://api.openai.com/v1') {
     this.apiKey = apiKey;
@@ -34,7 +34,7 @@ export class OpenAIProvider implements AIProviderInterface {
       `${this.baseUrl}/chat/completions`,
       {
         model: this.model,
-        max_tokens: this.maxTokens,
+        max_tokens: MAX_TOKENS,
         messages: [
           {
             role: 'system',

@@ -2,6 +2,7 @@ import { buildSystemMessage, buildPromptScriptTemplate } from '../prompts.js';
 import { buildTemplate } from './default.js';
 import type { Config, Language } from '../types.js';
 import { PROVIDER_PRESETS } from '../types.js';
+import { MAX_TOKENS } from '../constants.js';
 
 export function generateGitLabScript(config: Config, lang: Language): string {
   const sections = config.templates || ['summary', 'changes', 'review', 'testing', 'notes', 'references'];
@@ -178,7 +179,7 @@ async function callAI(prompt, diff) {
   const res = await httpRequest(BASE_URL + '/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': \`Bearer \${AI_API_KEY}\` }
-  }, { model: MODEL, max_tokens: 1000, messages: [{ role: 'system', content: SYSTEM_MESSAGE }, { role: 'user', content: prompt + '\\n\\nGIT DIFF:\\n' + diff.slice(0, MAX_DIFF_CHARS) }] });
+  }, { model: MODEL, max_tokens: ${MAX_TOKENS}, messages: [{ role: 'system', content: SYSTEM_MESSAGE }, { role: 'user', content: prompt + '\\n\\nGIT DIFF:\\n' + diff.slice(0, MAX_DIFF_CHARS) }] });
   if (res.status !== 200) {
     const err = new Error(\`AI error (HTTP \${res.status})\`);
     err.status = res.status;

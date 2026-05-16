@@ -1,10 +1,8 @@
-import { readFileSync } from 'fs';
 import { buildSystemMessage, buildPromptScriptTemplate } from '../prompts.js';
 import { buildTemplate } from './default.js';
 import type { Config, Language } from '../types.js';
 import { PROVIDER_PRESETS } from '../types.js';
-
-const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf-8'));
+import { MAX_TOKENS, USER_AGENT } from '../constants.js';
 
 export function generateGitHubScript(config: Config, lang: Language): string {
   const sections = config.templates || ['summary', 'changes', 'review', 'testing', 'notes', 'references'];
@@ -157,7 +155,7 @@ function httpRequest(url, options, body = null) {
 async function getPRInfo() {
   const res = await httpRequest(\`https://api.github.com/repos/\${OWNER}/\${REPO}/pulls/\${GITHUB_PR_NUMBER}\`, {
     method: 'GET',
-    headers: { 'Authorization': \`Bearer \${GITHUB_TOKEN}\`, 'Accept': 'application/vnd.github.v3+json', 'User-Agent': '${pkg.name}/${pkg.version}' }
+    headers: { 'Authorization': \`Bearer \${GITHUB_TOKEN}\`, 'Accept': 'application/vnd.github.v3+json', 'User-Agent': '${USER_AGENT}' }
   });
   if (res.status !== 200) throw new Error(\`Failed to get PR info (HTTP \${res.status})\`);
   return res.body;
@@ -166,7 +164,7 @@ async function getPRInfo() {
 async function getPRDiff() {
   const res = await httpRequest(\`https://api.github.com/repos/\${OWNER}/\${REPO}/pulls/\${GITHUB_PR_NUMBER}/files\`, {
     method: 'GET',
-    headers: { 'Authorization': \`Bearer \${GITHUB_TOKEN}\`, 'Accept': 'application/vnd.github.v3+json', 'User-Agent': '${pkg.name}/${pkg.version}' }
+    headers: { 'Authorization': \`Bearer \${GITHUB_TOKEN}\`, 'Accept': 'application/vnd.github.v3+json', 'User-Agent': '${USER_AGENT}' }
   });
   if (res.status !== 200) throw new Error(\`Failed to get PR diff (HTTP \${res.status})\`);
   return res.body.map(f => f.patch ? \`--- \${f.filename}\\n+++ \${f.filename}\\n\${f.patch}\` : '').filter(Boolean).join('\\n\\n');
@@ -175,7 +173,7 @@ async function getPRDiff() {
 async function updatePRDescription(desc) {
   await httpRequest(\`https://api.github.com/repos/\${OWNER}/\${REPO}/pulls/\${GITHUB_PR_NUMBER}\`, {
     method: 'PATCH',
-    headers: { 'Authorization': \`Bearer \${GITHUB_TOKEN}\`, 'Accept': 'application/vnd.github.v3+json', 'User-Agent': '${pkg.name}/${pkg.version}' }
+    headers: { 'Authorization': \`Bearer \${GITHUB_TOKEN}\`, 'Accept': 'application/vnd.github.v3+json', 'User-Agent': '${USER_AGENT}' }
   }, { body: desc });
 }
 
@@ -183,7 +181,7 @@ async function callAI(prompt, diff) {
   const res = await httpRequest(BASE_URL + '/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': \`Bearer \${AI_API_KEY}\` }
-  }, { model: MODEL, max_tokens: 1000, messages: [{ role: 'system', content: SYSTEM_MESSAGE }, { role: 'user', content: prompt + '\\n\\nGIT DIFF:\\n' + diff.slice(0, MAX_DIFF_CHARS) }] });
+  }, { model: MODEL, max_tokens: ${MAX_TOKENS}, messages: [{ role: 'system', content: SYSTEM_MESSAGE }, { role: 'user', content: prompt + '\\n\\nGIT DIFF:\\n' + diff.slice(0, MAX_DIFF_CHARS) }] });
   if (res.status !== 200) {
     const err = new Error(\`AI error (HTTP \${res.status})\`);
     err.status = res.status;

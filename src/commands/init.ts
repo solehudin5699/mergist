@@ -1,5 +1,5 @@
 import { intro, outro, select, confirm, text, multiselect, isCancel } from '@clack/prompts';
-import { existsSync, mkdirSync, rmSync, writeFileSync, readFileSync } from 'fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { resolve } from 'path';
 import { loadConfig, saveConfig, getConfigPath } from '../config.js';
 import { buildTemplate } from '../templates/default.js';
@@ -8,13 +8,12 @@ import { generateGitHubScript } from '../templates/github-script.js';
 import { generateGitLabCI, generateGitHubWorkflow } from '../templates/ci-templates.js';
 import type { Platform, Language, Config, Section, AIProvider } from '../types.js';
 import { PROVIDER_PRESETS } from '../types.js';
-
-const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf-8'));
+import { PKG_NAME, PKG_DESCRIPTION, PKG_VERSION } from '../constants.js';
 
 export async function initAction(): Promise<void> {
   const cwd = process.cwd();
 
-  intro(`${pkg.name} v${pkg.version}\n${pkg.description}`);
+  intro(`${PKG_NAME} v${PKG_VERSION}\n${PKG_DESCRIPTION}`);
 
   const platform = (await select({
     message: 'Select platform',

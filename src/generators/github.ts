@@ -3,9 +3,7 @@ import type { PRInfo, AIProviderInterface, Language, Section } from '../types.js
 import { AI_SECTIONS, HUMAN_SECTIONS } from '../types.js';
 import { buildUserPrompt, buildSystemMessage } from '../prompts.js';
 import { buildTemplate, splitSections, wrapInMarkers } from '../templates/default.js';
-import pkg from '../../package.json' with { type: 'json' };
-
-const USER_AGENT = `${pkg.name}/${pkg.version}`;
+import { USER_AGENT } from '../constants.js';
 
 interface PRFile {
   filename: string;
