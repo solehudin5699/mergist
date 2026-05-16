@@ -19,6 +19,7 @@ const configSchema = z.object({
   autoUpdate: z.boolean().default(true),
   templates: z.array(sectionSchema).default(['summary', 'changes', 'review', 'testing', 'notes', 'references']),
   providers: z.record(z.string(), providerConfigSchema.optional()),
+  ciTargetBranches: z.array(z.string()).optional(),
 });
 
 const defaultConfig: Config = {

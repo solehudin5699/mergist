@@ -1,14 +1,20 @@
 import type { Config } from '../types.js';
 
-export function generateGitLabCI(generateScript: boolean): string {
+export function generateGitLabCI(generateScript: boolean, config: Config): string {
+  const branches = config.ciTargetBranches;
+  const rules = branches?.length
+    ? `rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^(${branches.join('|')})$/'`
+    : `rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"`;
+
   return `stages:
   - ai-mr
 
 generate-mr-description:
   stage: ai-mr
   image: node:20-alpine
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  ${rules}
   variables:
     GIT_DEPTH: 0
   script:
@@ -22,11 +28,16 @@ export function generateGitHubWorkflow(generateScript: boolean, config: Config):
   const providerCfg = config.providers[providerKey] || { apiKey: 'env:AI_API_KEY' };
   const envVarName = providerCfg.apiKey?.replace(/^env:/, '') || 'AI_API_KEY';
 
+  const branches = config.ciTargetBranches;
+  const branchesYaml = branches?.length
+    ? `\n    branches:\n${branches.map(b => `      - ${b}`).join('\n')}`
+    : '';
+
   return `name: Generate PR Description
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize]${branchesYaml}
   workflow_dispatch:
 
 jobs:

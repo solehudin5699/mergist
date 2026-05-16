@@ -34,6 +34,7 @@ export interface Config {
   providers: {
     [key: string]: ProviderConfig | undefined;
   };
+  ciTargetBranches?: string[];
 }
 
 export interface MRInfo {

@@ -1,5 +1,8 @@
 import { Command } from 'commander';
-import { loadConfig, saveConfig } from '../config.js';
+import { existsSync, mkdirSync, writeFileSync } from 'fs';
+import { resolve } from 'path';
+import { loadConfig, saveConfig, getConfigPath } from '../config.js';
+import { generateGitLabCI, generateGitHubWorkflow } from '../templates/ci-templates.js';
 import type { Platform, Language, Section, AIProvider } from '../types.js';
 
 export const configCommands = new Command('config').description('Show or edit configuration');
@@ -8,6 +11,10 @@ configCommands
   .command('show')
   .description('Show current configuration')
   .action(() => {
+    if (!existsSync(getConfigPath())) {
+      console.log('No config file found. Run "mergist init" first.');
+      return;
+    }
     const config = loadConfig();
     console.log('\n📋 Current Configuration:\n');
     console.log(JSON.stringify(config, null, 2));
@@ -18,6 +25,10 @@ configCommands
   .command('get <key>')
   .description('Get a config value')
   .action((key: string) => {
+    if (!existsSync(getConfigPath())) {
+      console.error('❌ No config file found. Run "mergist init" first.');
+      process.exit(1);
+    }
     const config = loadConfig();
     const value = (config as unknown as Record<string, unknown>)[key];
     if (value === undefined) {
@@ -31,6 +42,10 @@ configCommands
   .command('set <key> <value>')
   .description('Set a config value')
   .action((key: string, value: string) => {
+    if (!existsSync(getConfigPath())) {
+      console.error('❌ No config file found. Run "mergist init" first.');
+      process.exit(1);
+    }
     const config = loadConfig();
 
     if (key === 'platform') {
@@ -73,12 +88,30 @@ configCommands
         console.error('❌ templates must be a JSON array, e.g. ["summary","changes","testing"]');
         process.exit(1);
       }
+    } else if (key === 'ciTargetBranches') {
+      config.ciTargetBranches = value
+        ? value.split(',').map(v => v.trim()).filter(Boolean)
+        : undefined;
+      if (config.ciTargetBranches?.length === 0) config.ciTargetBranches = undefined;
     } else {
       console.error(`❌ Unknown key: ${key}`);
-      console.log('Available keys: platform, maxDiffChars, aiProvider, lang, autoUpdate, templates');
+      console.log('Available keys: platform, maxDiffChars, aiProvider, lang, autoUpdate, templates, ciTargetBranches');
       process.exit(1);
     }
 
     saveConfig(config);
     console.log(`✅ Updated ${key} = ${value}`);
+
+    if (key === 'platform' || key === 'ciTargetBranches' || (key === 'aiProvider' && config.platform === 'github')) {
+      const cwd = process.cwd();
+      if (config.platform === 'gitlab') {
+        writeFileSync(resolve(cwd, '.gitlab-ci.yml'), generateGitLabCI(false, config));
+        console.log('↻ .gitlab-ci.yml regenerated');
+      } else {
+        const dir = resolve(cwd, '.github', 'workflows');
+        if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+        writeFileSync(resolve(dir, 'mergist.yml'), generateGitHubWorkflow(false, config));
+        console.log('↻ .github/workflows/mergist.yml regenerated');
+      }
+    }
   });

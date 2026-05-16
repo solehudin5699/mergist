@@ -46,6 +46,25 @@ export async function initAction(): Promise<void> {
   if (isCancel(scriptResult)) process.exit(0);
   const generateScript = scriptResult as boolean;
 
+  const branchLimitResult = await confirm({
+    message: 'Limit CI to specific target branches?',
+    initialValue: false,
+  });
+  if (isCancel(branchLimitResult)) process.exit(0);
+
+  let ciTargetBranches: string[] | undefined;
+  if (branchLimitResult) {
+    const branchesResult = await text({
+      message: 'Target branches (comma separated, e.g. main,develop)',
+      placeholder: 'main',
+    });
+    if (isCancel(branchesResult)) process.exit(0);
+    ciTargetBranches = (branchesResult as string)
+      .split(',')
+      .map(b => b.trim())
+      .filter(Boolean);
+  }
+
   let model = existingConfig.providers?.[existingConfig.aiProvider]?.model || '';
   let maxDiffChars = existingConfig.maxDiffChars;
   let lang: Language = existingConfig.lang;
@@ -145,6 +164,7 @@ export async function initAction(): Promise<void> {
     providers: {
       [aiProvider]: { apiKey: 'env:AI_API_KEY', model, baseUrl: apiBaseUrl },
     },
+    ciTargetBranches: ciTargetBranches?.length ? ciTargetBranches : undefined,
   };
 
   const mergistDir = resolve(cwd, '.mergist', platform);
@@ -160,7 +180,7 @@ export async function initAction(): Promise<void> {
     } else if (existsSync(gitlabScriptPath)) {
       rmSync(gitlabScriptPath);
     }
-    writeFileSync(resolve(cwd, '.gitlab-ci.yml'), generateGitLabCI(generateScript));
+    writeFileSync(resolve(cwd, '.gitlab-ci.yml'), generateGitLabCI(generateScript, config));
   } else if (platform === 'github') {
     const githubScriptPath = resolve(mergistDir, 'generate.js');
     if (generateScript) {
