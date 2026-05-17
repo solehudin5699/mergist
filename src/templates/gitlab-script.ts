@@ -2,7 +2,7 @@ import { buildSystemMessage, buildPromptScriptTemplate } from '../prompts.js';
 import { buildTemplate } from './default.js';
 import type { Config, Language } from '../types.js';
 import { PROVIDER_PRESETS } from '../types.js';
-import { MAX_TOKENS } from '../constants.js';
+import { MAX_TOKENS, HUMAN_SECTIONS } from '../constants.js';
 
 export function generateGitLabScript(config: Config, lang: Language): string {
   const sections = config.templates || ['summary', 'changes', 'review', 'testing', 'notes', 'references'];
@@ -30,8 +30,7 @@ const MAX_DIFF_CHARS = ${config.maxDiffChars};
 const SYSTEM_MESSAGE = ${JSON.stringify(systemMessage)};
 
 const SECTIONS = ${JSON.stringify(sections)};
-const AI_SECTIONS = ['summary', 'changes', 'testing', 'review'];
-const HUMAN_SECTIONS = ['notes', 'references'];
+const HUMAN_SECTIONS = ${JSON.stringify(HUMAN_SECTIONS)};
 const AUTO_UPDATE = ${config.autoUpdate};
 
 const BASE_URL = '${baseUrl}';

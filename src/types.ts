@@ -15,9 +15,6 @@ export const PROVIDER_PRESETS: Record<AIProvider, ProviderPreset> = {
 export type Language = 'id' | 'en';
 export type Section = 'summary' | 'changes' | 'review' | 'testing' | 'notes' | 'references';
 
-export const AI_SECTIONS: Section[] = ['summary', 'changes', 'testing', 'review'];
-export const HUMAN_SECTIONS: Section[] = ['notes', 'references'];
-
 export interface ProviderConfig {
   apiKey: string;
   model?: string;

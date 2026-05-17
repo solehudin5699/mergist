@@ -1,4 +1,5 @@
-import { AI_SECTIONS, HUMAN_SECTIONS, type Section } from './types.js';
+import { AI_SECTIONS, HUMAN_SECTIONS } from './constants.js';
+import type { Section } from './types.js';
 
 export type Lang = 'id' | 'en';
 export type PromptType = 'mr' | 'pr';

@@ -9,7 +9,7 @@ import { generateGitLabCI, generateGitHubWorkflow } from '../templates/ci-templa
 import type { Platform, Language, Config, Section, AIProvider } from '../types.js';
 import { PROVIDER_PRESETS } from '../types.js';
 import { printNextSteps } from '../steps.js';
-import { PKG_NAME, PKG_DESCRIPTION, PKG_VERSION } from '../constants.js';
+import { PKG_NAME, PKG_DESCRIPTION, PKG_VERSION, ALL_SECTIONS } from '../constants.js';
 
 function ensureMergistStage(content: string): string {
   if (!/^stages:$/m.test(content)) return content;
@@ -160,7 +160,7 @@ export async function initAction(): Promise<void> {
     lang = langResult as Language;
   }
 
-  let sections: Section[] = existingConfig.templates || ['summary', 'changes', 'review', 'testing', 'notes', 'references'];
+  let sections: Section[] = existingConfig.templates || ALL_SECTIONS;
   let autoUpdate = existingConfig.autoUpdate ?? true;
 
   if (shouldPrompt) {
@@ -178,7 +178,7 @@ export async function initAction(): Promise<void> {
       initialValues: sections,
     });
     if (isCancel(sectionResult)) process.exit(0);
-    sections = sectionResult as Section[];
+    sections = (sectionResult as Section[]).sort((a, b) => ALL_SECTIONS.indexOf(a) - ALL_SECTIONS.indexOf(b));
 
     const autoUpdateResult = await confirm({
       message: 'Auto-update description when new commits pushed?',

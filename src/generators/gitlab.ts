@@ -1,6 +1,6 @@
 import axios from 'axios';
 import type { MRInfo, DiffFile, AIProviderInterface, Language, Section } from '../types.js';
-import { AI_SECTIONS, HUMAN_SECTIONS } from '../types.js';
+import { AI_SECTIONS, HUMAN_SECTIONS } from '../constants.js';
 import { buildUserPrompt, buildSystemMessage } from '../prompts.js';
 import { buildTemplate, splitSections, wrapInMarkers } from '../templates/default.js';
 
