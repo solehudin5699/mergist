@@ -1,6 +1,6 @@
 # mergist
 
-AI-powered merge request summary generator.
+Generate merge request and pull request descriptions from your git diff.
 
 ## Getting Started
 
@@ -185,7 +185,7 @@ jobs:
 
 - **GitHub fork PRs** — Not yet supported. The `pull_request` event does not expose secrets for fork PRs, so the workflow fails. Workaround: work in the same repository.
 
-**GitLab note:** Fork MRs are supported — enable "Run pipelines in the parent project" in Settings → CI/CD → Merge requests.
+- **GitLab note:** Fork MRs are supported — enable "Run pipelines in the parent project" in Settings → CI/CD → Merge requests.
 
 ## License
 

@@ -1,7 +1,7 @@
 {
   "name": "mergist",
   "version": "1.0.0",
-  "description": "AI-powered merge request summary generator",
+  "description": "Generate merge request and pull request descriptions from your git diff.",
   "type": "module",
   "bin": {
     "mergist": "./dist/cli.js"
