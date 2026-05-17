@@ -2,10 +2,10 @@ import { buildSystemMessage, buildPromptScriptTemplate } from '../prompts.js';
 import { buildTemplate } from './default.js';
 import type { Config, Language } from '../types.js';
 import { PROVIDER_PRESETS } from '../types.js';
-import { MAX_TOKENS, HUMAN_SECTIONS } from '../constants.js';
+import { MAX_TOKENS, HUMAN_SECTIONS, ALL_SECTIONS } from '../constants.js';
 
 export function generateGitLabScript(config: Config, lang: Language): string {
-  const sections = config.templates || ['summary', 'changes', 'review', 'testing', 'notes', 'references'];
+  const sections = config.templates || ALL_SECTIONS;
   const systemMessage = buildSystemMessage('mr', lang);
   const generatedPrompt = buildPromptScriptTemplate('mr', lang);
   const type = 'mr';
