@@ -187,6 +187,10 @@ jobs:
 
 - **GitLab note:** Fork MRs are supported — enable "Run pipelines in the parent project" in Settings → CI/CD → Merge requests.
 
+- **GitLab Runner:** GitLab CI requires a runner to execute jobs. If your self-hosted instance has no available runner, the CI pipeline will remain stuck in "pending" state.
+  - **Check available runners:** Settings → CI/CD → Runners
+  - If none available, register a new runner.
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
