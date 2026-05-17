@@ -41,16 +41,16 @@ const steps: Record<Platform, Step[]> = {
     },
     {
       num: '3',
-      title: 'Commit generated files to your target branch:',
+      title: 'Commit generated files:',
       details: [
         `${c.yellow('git add .gitlab-ci.yml .mergistrc .mergist/')}`,
         `${c.yellow('git commit -m "chore: init mergist"')}`,
-        `${c.yellow('git push origin')} ${c.magenta('<target-branch>')}`,
+        `${c.yellow('git push origin <your-branch>')}`,
       ],
     },
     {
       num: '4',
-      title: 'Create a Merge Request targeting that branch.',
+      title: 'Create a Merge Request targeting other branch.',
       details: ['CI will auto-generate the description.'],
     },
   ],
@@ -75,16 +75,16 @@ const steps: Record<Platform, Step[]> = {
     },
     {
       num: '3',
-      title: 'Commit generated files to your target branch:',
+      title: 'Commit generated files:',
       details: [
         `${c.yellow('git add .github/workflows/mergist.yml .mergistrc .mergist/')}`,
         `${c.yellow('git commit -m "chore: init mergist"')}`,
-        `${c.yellow('git push origin')} ${c.magenta('<target-branch>')}`,
+        `${c.yellow('git push origin <your-branch>')}`,
       ],
     },
     {
       num: '4',
-      title: 'Create a Pull Request targeting that branch.',
+      title: 'Create a Pull Request targeting other branch.',
       details: ['CI will auto-generate the description.'],
     },
   ],

@@ -6,8 +6,8 @@ Generate merge request and pull request descriptions from your git diff.
 
 1. **Init** — run `npx mergist init` in your project, select a platform and configure settings. Init displays detailed platform-specific setup steps.
 2. **Setup CI secrets** — follow the on-screen steps after init to add the required API keys and tokens
-3. **Commit** — commit the generated files (`.mergistrc`, CI workflow, and optional standalone script) to your **target branch** (e.g. `main` / `develop`)
-4. **Create MR/PR** — open a new merge request or pull request targeting that branch
+3. **Commit** — commit the generated files (`.mergistrc`, CI workflow, and optional standalone script)
+4. **Create MR/PR** — open a new merge request or pull request targeting other branch
 5. **Automated** — CI runs, AI generates the description, and the description gets updated
 
 ### Commands
