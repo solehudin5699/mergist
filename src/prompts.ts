@@ -78,13 +78,6 @@ export function buildSystemMessage(type: PromptType, lang: Lang): string {
   return t.system.replace('__LABEL__', label);
 }
 
-export function getSectionsFromTemplate(templateStr: string): { aiSections: Section[]; humanSections: Section[] } {
-  return {
-    aiSections: AI_SECTIONS.filter(s => templateStr.includes(`<!-- SECTION:${s} -->`)),
-    humanSections: HUMAN_SECTIONS.filter(s => templateStr.includes(`<!-- SECTION:${s} -->`)),
-  };
-}
-
 function buildPromptText(
   type: PromptType,
   lang: Lang,

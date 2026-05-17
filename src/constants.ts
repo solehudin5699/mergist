@@ -14,6 +14,6 @@ export const PKG_VERSION: string = pkg.version;
 export const PKG_DESCRIPTION: string = pkg.description;
 export const USER_AGENT = `${pkg.name}/${pkg.version}`;
 
-export const AI_SECTIONS: Section[] = ['summary', 'changes', 'testing', 'review'];
+export const AI_SECTIONS: Section[] = ['summary', 'changes', 'review', 'testing'];
 export const HUMAN_SECTIONS: Section[] = ['notes', 'references'];
 export const ALL_SECTIONS: Section[] = ['summary', 'changes', 'review', 'testing', 'notes', 'references'];

@@ -165,14 +165,14 @@ export async function initAction(): Promise<void> {
 
   if (shouldPrompt) {
     const sectionResult = await multiselect({
-      message: 'Pilih section template:',
+      message: 'Select section template:',
       options: [
-        { value: 'summary', label: 'Ringkasan', hint: 'Deskripsi singkat MR/PR' },
-        { value: 'changes', label: 'Daftar Perubahan', hint: 'Fitur, perbaikan, removals' },
-        { value: 'testing', label: 'Testing', hint: 'Checklist testing' },
-        { value: 'review', label: 'AI Review', hint: 'Analisis kode oleh AI' },
-        { value: 'notes', label: 'Catatan', hint: 'Catatan developer (manual)' },
-        { value: 'references', label: 'Referensi', hint: 'Link issue/ticket (manual)' },
+        { value: 'summary', label: 'Summary', hint: 'Brief MR/PR description' },
+        { value: 'changes', label: 'Changes', hint: 'Features, fixes, removals' },
+        { value: 'review', label: 'AI Review', hint: 'Code analysis by AI' },
+        { value: 'testing', label: 'Testing', hint: 'Testing checklist' },
+        { value: 'notes', label: 'Notes', hint: 'Developer notes (manual)' },
+        { value: 'references', label: 'References', hint: 'Issue/ticket links (manual)' },
       ],
       required: true,
       initialValues: sections,
