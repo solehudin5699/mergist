@@ -8,6 +8,7 @@ import { generateGitHubScript } from '../templates/github-script.js';
 import { generateGitLabCI, generateGitHubWorkflow } from '../templates/ci-templates.js';
 import type { Platform, Language, Config, Section, AIProvider } from '../types.js';
 import { PROVIDER_PRESETS } from '../types.js';
+import { printNextSteps } from '../steps.js';
 import { PKG_NAME, PKG_DESCRIPTION, PKG_VERSION } from '../constants.js';
 
 function ensureMergistStage(content: string): string {
@@ -234,8 +235,5 @@ export async function initAction(): Promise<void> {
   saveConfig(config, cwd);
 
   outro(`Successfully initialized mergist for ${platform}!`);
-  console.log('Next steps:');
-  console.log('1. Set your API key in CI secrets (AI_API_KEY)');
-  console.log('2. Commit the generated files');
-  console.log('3. Create a merge request to test');
+  printNextSteps(platform, { generateScript, ciTargetBranches });
 }
