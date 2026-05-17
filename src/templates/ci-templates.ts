@@ -9,10 +9,10 @@ export function generateGitLabCI(generateScript: boolean, config: Config): strin
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"`;
 
   return `stages:
-  - ai-mr
+  - mergist
 
-generate-mr-description:
-  stage: ai-mr
+mergist:
+  stage: mergist
   image: node:20-alpine
   ${rules}
   variables:

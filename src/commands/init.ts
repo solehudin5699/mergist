@@ -1,5 +1,5 @@
 import { intro, outro, select, confirm, text, multiselect, isCancel } from '@clack/prompts';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 import { loadConfig, saveConfig, getConfigPath } from '../config.js';
 import { buildTemplate } from '../templates/default.js';
@@ -9,6 +9,39 @@ import { generateGitLabCI, generateGitHubWorkflow } from '../templates/ci-templa
 import type { Platform, Language, Config, Section, AIProvider } from '../types.js';
 import { PROVIDER_PRESETS } from '../types.js';
 import { PKG_NAME, PKG_DESCRIPTION, PKG_VERSION } from '../constants.js';
+
+function ensureMergistStage(content: string): string {
+  if (!/^stages:$/m.test(content)) return content;
+  if (/^  - mergist$/m.test(content)) return content;
+  return content.replace(/^(stages:\n(?:  - .+\n?)*)/m, (m) => m.trimEnd() + '\n  - mergist\n');
+}
+
+function mergeGitLabCI(oldContent: string, newTemplate: string): string {
+  if (/^stages:$/m.test(oldContent)) {
+    newTemplate = newTemplate.replace(/^stages:\n  - mergist\n\n/, '');
+  }
+
+  const lines = oldContent.split('\n');
+  let jobStart = -1;
+  let jobEnd = lines.length;
+
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i] === 'mergist:') {
+      jobStart = i;
+    } else if (jobStart !== -1 && /^[a-zA-Z_]/.test(lines[i])) {
+      jobEnd = i;
+      break;
+    }
+  }
+
+  if (jobStart === -1) {
+    return ensureMergistStage(oldContent.trimEnd()) + '\n' + newTemplate;
+  }
+
+  const before = ensureMergistStage(lines.slice(0, jobStart).join('\n').trimEnd());
+  const after = lines.slice(jobEnd).join('\n');
+  return before + '\n' + newTemplate.trimEnd() + '\n' + after;
+}
 
 export async function initAction(): Promise<void> {
   const cwd = process.cwd();
@@ -180,7 +213,13 @@ export async function initAction(): Promise<void> {
     } else if (existsSync(gitlabScriptPath)) {
       rmSync(gitlabScriptPath);
     }
-    writeFileSync(resolve(cwd, '.gitlab-ci.yml'), generateGitLabCI(generateScript, config));
+    const gitlabPath = resolve(cwd, '.gitlab-ci.yml');
+    if (existsSync(gitlabPath)) {
+      const existing = readFileSync(gitlabPath, 'utf-8');
+      writeFileSync(gitlabPath, mergeGitLabCI(existing, generateGitLabCI(generateScript, config)));
+    } else {
+      writeFileSync(gitlabPath, generateGitLabCI(generateScript, config));
+    }
   } else if (platform === 'github') {
     const githubScriptPath = resolve(mergistDir, 'generate.js');
     if (generateScript) {
