@@ -2,7 +2,6 @@ import { intro, outro, select, confirm, text, multiselect, isCancel } from '@cla
 import { existsSync, mkdirSync, rmSync, writeFileSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 import { loadConfig, saveConfig, getConfigPath } from '../config.js';
-import { buildTemplate } from '../templates/default.js';
 import { generateGitLabScript } from '../templates/gitlab-script.js';
 import { generateGitHubScript } from '../templates/github-script.js';
 import { generateGitLabCI, generateGitHubWorkflow } from '../templates/ci-templates.js';
@@ -73,30 +72,40 @@ export async function initAction(): Promise<void> {
     reinit = true;
   }
 
-  const scriptResult = await confirm({
-    message: 'Generate standalone script (no npx dependency)?',
-    initialValue: false,
+  const useCIResult = await confirm({
+    message: 'Configure CI pipeline?',
+    initialValue: true,
   });
-  if (isCancel(scriptResult)) process.exit(0);
-  const generateScript = scriptResult as boolean;
+  if (isCancel(useCIResult)) process.exit(0);
+  const useCI = useCIResult as boolean;
 
-  const branchLimitResult = await confirm({
-    message: 'Limit CI to specific target branches?',
-    initialValue: false,
-  });
-  if (isCancel(branchLimitResult)) process.exit(0);
-
+  let generateScript = false;
   let ciTargetBranches: string[] | undefined;
-  if (branchLimitResult) {
-    const branchesResult = await text({
-      message: 'Target branches (comma separated, e.g. main,develop)',
-      placeholder: 'main',
+  if (useCI) {
+    const scriptResult = await confirm({
+      message: 'Generate standalone script (no npx dependency)?',
+      initialValue: false,
     });
-    if (isCancel(branchesResult)) process.exit(0);
-    ciTargetBranches = (branchesResult as string)
-      .split(',')
-      .map(b => b.trim())
-      .filter(Boolean);
+    if (isCancel(scriptResult)) process.exit(0);
+    generateScript = scriptResult as boolean;
+
+    const branchLimitResult = await confirm({
+      message: 'Limit CI to specific target branches?',
+      initialValue: false,
+    });
+    if (isCancel(branchLimitResult)) process.exit(0);
+
+    if (branchLimitResult) {
+      const branchesResult = await text({
+        message: 'Target branches (comma separated, e.g. main,develop)',
+        placeholder: 'main',
+      });
+      if (isCancel(branchesResult)) process.exit(0);
+      ciTargetBranches = (branchesResult as string)
+        .split(',')
+        .map(b => b.trim())
+        .filter(Boolean);
+    }
   }
 
   let model = existingConfig.providers?.[existingConfig.aiProvider]?.model || '';
@@ -165,7 +174,7 @@ export async function initAction(): Promise<void> {
 
   if (shouldPrompt) {
     const sectionResult = await multiselect({
-      message: 'Select section template:',
+      message: 'Select section template (space: toggle, enter: done):',
       options: [
         { value: 'summary', label: 'Summary', hint: 'Brief MR/PR description' },
         { value: 'changes', label: 'Changes', hint: 'Features, fixes, removals' },
@@ -180,12 +189,14 @@ export async function initAction(): Promise<void> {
     if (isCancel(sectionResult)) process.exit(0);
     sections = (sectionResult as Section[]).sort((a, b) => ALL_SECTIONS.indexOf(a) - ALL_SECTIONS.indexOf(b));
 
-    const autoUpdateResult = await confirm({
-      message: 'Auto-update description when new commits pushed?',
-      initialValue: autoUpdate,
-    });
-    if (isCancel(autoUpdateResult)) process.exit(0);
-    autoUpdate = autoUpdateResult as boolean;
+    if (useCI) {
+      const autoUpdateResult = await confirm({
+        message: 'Auto-update description when new commits pushed?',
+        initialValue: autoUpdate,
+      });
+      if (isCancel(autoUpdateResult)) process.exit(0);
+      autoUpdate = autoUpdateResult as boolean;
+    }
   }
 
   const config: Config = {
@@ -201,39 +212,42 @@ export async function initAction(): Promise<void> {
     ciTargetBranches: ciTargetBranches?.length ? ciTargetBranches : undefined,
   };
 
-  const mergistDir = resolve(cwd, '.mergist', platform);
-  mkdirSync(mergistDir, { recursive: true });
+  if (useCI) {
+    const mergistDir = resolve(cwd, '.mergist', platform);
+    mkdirSync(mergistDir, { recursive: true });
 
-  const type = platform === 'gitlab' ? 'mr' : 'pr';
-  const template = buildTemplate(type, sections, lang);
-
-  if (platform === 'gitlab') {
-    const gitlabScriptPath = resolve(mergistDir, 'generate.js');
-    if (generateScript) {
-      writeFileSync(gitlabScriptPath, generateGitLabScript(config, lang));
-    } else if (existsSync(gitlabScriptPath)) {
-      rmSync(gitlabScriptPath);
+    if (platform === 'gitlab') {
+      const gitlabScriptPath = resolve(mergistDir, 'generate.js');
+      if (generateScript) {
+        writeFileSync(gitlabScriptPath, generateGitLabScript(config, lang));
+      } else if (existsSync(gitlabScriptPath)) {
+        rmSync(gitlabScriptPath);
+      }
+      const gitlabPath = resolve(cwd, '.gitlab-ci.yml');
+      if (existsSync(gitlabPath)) {
+        const existing = readFileSync(gitlabPath, 'utf-8');
+        writeFileSync(gitlabPath, mergeGitLabCI(existing, generateGitLabCI(generateScript, config)));
+      } else {
+        writeFileSync(gitlabPath, generateGitLabCI(generateScript, config));
+      }
+    } else if (platform === 'github') {
+      const githubScriptPath = resolve(mergistDir, 'generate.js');
+      if (generateScript) {
+        writeFileSync(githubScriptPath, generateGitHubScript(config, lang));
+      } else if (existsSync(githubScriptPath)) {
+        rmSync(githubScriptPath);
+      }
+      mkdirSync(resolve(cwd, '.github', 'workflows'), { recursive: true });
+      writeFileSync(resolve(cwd, '.github', 'workflows', 'mergist.yml'), generateGitHubWorkflow(generateScript, config));
     }
-    const gitlabPath = resolve(cwd, '.gitlab-ci.yml');
-    if (existsSync(gitlabPath)) {
-      const existing = readFileSync(gitlabPath, 'utf-8');
-      writeFileSync(gitlabPath, mergeGitLabCI(existing, generateGitLabCI(generateScript, config)));
-    } else {
-      writeFileSync(gitlabPath, generateGitLabCI(generateScript, config));
-    }
-  } else if (platform === 'github') {
-    const githubScriptPath = resolve(mergistDir, 'generate.js');
-    if (generateScript) {
-      writeFileSync(githubScriptPath, generateGitHubScript(config, lang));
-    } else if (existsSync(githubScriptPath)) {
-      rmSync(githubScriptPath);
-    }
-    mkdirSync(resolve(cwd, '.github', 'workflows'), { recursive: true });
-    writeFileSync(resolve(cwd, '.github', 'workflows', 'mergist.yml'), generateGitHubWorkflow(generateScript, config));
   }
 
   saveConfig(config, cwd);
 
   outro(`Successfully initialized mergist for ${platform}!`);
-  printNextSteps(platform, { generateScript, ciTargetBranches });
+  if (useCI) {
+    printNextSteps(platform, { generateScript, ciTargetBranches });
+  } else {
+    console.log('\n  CI not configured, to run `npx mergist diff`, add AI_API_KEY to .env in your project root.\n');
+  }
 }

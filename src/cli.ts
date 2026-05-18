@@ -3,6 +3,7 @@
 import { Command } from 'commander';
 import { initAction } from './commands/init.js';
 import { generateAction } from './commands/generate.js';
+import { diffAction } from './commands/diff.js';
 import { configCommands } from './commands/config.js';
 import { PKG_NAME, PKG_DESCRIPTION, PKG_VERSION } from './constants.js';
 
@@ -21,5 +22,12 @@ program
   .action(generateAction);
 
 program.addCommand(configCommands);
+
+program
+  .command('diff')
+  .description('Preview description from local git diff')
+  .requiredOption('-f, --from <branch>', 'Source branch')
+  .requiredOption('-t, --to <branch>', 'Target branch')
+  .action(diffAction);
 
 program.parse();
