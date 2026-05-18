@@ -86,7 +86,7 @@ export class GitHubGenerator {
 
   async updatePRDescription(description: string): Promise<void> {
     await axios.patch(
-      `${this.getBaseUrl}/pulls/${this.prNumber}`,
+      `${this.getBaseUrl()}/pulls/${this.prNumber}`,
       { body: description },
       { headers: this.getHeaders() }
     );
