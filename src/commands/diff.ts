@@ -111,7 +111,7 @@ export async function diffAction(opts: { from?: string; to?: string }): Promise<
 
   let description: string;
   const s = spinner();
-  s.start('Generating description...');
+  s.start('Generating...');
   try {
     description = await provider.generate(prompt, diff.slice(0, config.maxDiffChars || 8000), systemMessage);
     s.stop('Done');
