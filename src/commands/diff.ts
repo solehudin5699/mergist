@@ -1,3 +1,4 @@
+import { spinner } from '@clack/prompts';
 import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 import { execSync } from 'child_process';
@@ -109,9 +110,13 @@ export async function diffAction(opts: { from?: string; to?: string }): Promise<
   const systemMessage = buildSystemMessage(type, config.lang);
 
   let description: string;
+  const s = spinner();
+  s.start('Generating description...');
   try {
     description = await provider.generate(prompt, diff.slice(0, config.maxDiffChars || 8000), systemMessage);
+    s.stop('Done');
   } catch (err: any) {
+    s.stop('Failed');
     console.error(`AI request failed: ${err.message}`);
     if (err.response?.status === 401) {
       console.error('Check your API key in .env or AI_API_KEY environment variable.');
