@@ -8,6 +8,8 @@ import { PROVIDER_PRESETS } from '../types.js';
 import { buildUserPrompt, buildSystemMessage } from '../prompts.js';
 import { c, AI_SECTIONS, HUMAN_SECTIONS, ALL_SECTIONS } from '../constants.js';
 import { startBreathing } from '../banner.js';
+import { createMR, getProjectId, getGitLabApiUrl } from '../api/gitlab.js';
+import { createPR, parseGitHubRemote } from '../api/github.js';
 
 function loadEnvFile(path = '.env') {
   try {
@@ -139,4 +141,92 @@ export async function diffAction(opts: { from?: string; to?: string }): Promise<
   ).join('\n\n');
 
   console.log(colorizeOutput(finalDesc));
+
+  const { confirm, password, isCancel, spinner } = await import('@clack/prompts');
+  const createDraft = await confirm({
+    message: `Create Draft ${type === 'mr' ? 'MR' : 'PR'} from ${fromBranch} to ${toBranch}?`,
+    initialValue: false,
+  });
+  if (!createDraft || isCancel(createDraft)) return;
+
+  const tokenEnvKey = config.platform === 'gitlab' ? 'GITLAB_TOKEN' : 'GITHUB_TOKEN';
+  let platformToken = process.env[tokenEnvKey];
+  if (!platformToken) {
+    console.log(`Set ${tokenEnvKey} in .env to skip this prompt.`);
+    const result = await password({ message: `Enter ${tokenEnvKey}:` });
+    if (isCancel(result)) return;
+    platformToken = result as string;
+  }
+
+  const s = spinner();
+  try {
+    const remoteUrl = getPlatformRemote(config.platform);
+    const title = titleFromBranch(fromBranch);
+
+    if (config.platform === 'gitlab') {
+      const apiUrl = getGitLabApiUrl(remoteUrl);
+      const projectId = await getProjectId(platformToken, apiUrl, remoteUrl);
+      console.log(`  Remote: ${remoteUrl}`);
+      s.start('Creating draft MR...');
+      const mr = await createMR(platformToken, apiUrl, projectId, fromBranch, toBranch, title, finalDesc);
+      s.stop(`✅ ${c.bold(c.green('Draft MR created'))}: ${c.cyan(mr.web_url)}`);
+    } else {
+      const { owner, repo } = parseGitHubRemote(remoteUrl);
+      console.log(`  Remote: ${remoteUrl}`);
+      s.start('Creating draft PR...');
+      const pr = await createPR(platformToken, owner, repo, fromBranch, toBranch, title, finalDesc);
+      s.stop(`✅ ${c.bold(c.green('Draft PR created'))}: ${c.cyan(pr.html_url)}`);
+    }
+  } catch (err: any) {
+    s.stop('❌ Failed');
+    const status = err.response?.status;
+    const respData = err.response?.data;
+    if (status === 409) {
+      const existing = err.response?.data?.message?.[0] || '';
+      const match = existing.match(/!(\d+)/);
+      const mrRef = match ? ` !${match[1]}` : '';
+      console.error(`\n${c.red('Source branch')} "${fromBranch}" ${c.red('already has an open MR')}${mrRef}. ${c.cyan('Close it first or use a different branch.')}`);
+      return;
+    }
+    const apiErr = respData?.error || respData?.message;
+    const apiErrors = respData?.errors;
+    console.error(`\n${c.red('Failed to create draft')}${status ? ` (HTTP ${c.yellow(String(status))})` : ''}: ${c.cyan(err.message)}`);
+    if (apiErrors?.length) {
+      // GitHub-specific: API returns errors array with field-level validation details
+      const firstMsg = apiErrors[0]?.message || '';
+      if (firstMsg.includes('not all refs are readable')) {
+        console.error(`  ${c.red('•')} ${firstMsg}`);
+        console.error(`  ${c.yellow('Tip:')} Your token may be missing ${c.cyan('Contents: Read')} permission.`);
+        console.error(`  ${c.yellow('  ')} Go to ${c.cyan('https://github.com/settings/personal-access-tokens')}, select your token,`);
+        console.error(`  ${c.yellow('  ')} set ${c.cyan('Repository permissions → Contents → Read')} and retry.`);
+      } else {
+        for (const e of apiErrors) {
+          console.error(`  ${c.red('•')} ${e.field ? `${c.cyan(e.field)}: ` : ''}${e.message || e.code}`);
+        }
+      }
+    } else if (apiErr) {
+      console.error(`  ${c.red('API:')} ${typeof apiErr === 'string' ? apiErr : apiErr.message || JSON.stringify(apiErr)}`);
+    } else if (respData) {
+      console.error(`  ${c.red('Response:')} ${JSON.stringify(respData)}`);
+    }
+  }
+}
+
+function titleFromBranch(branch: string): string {
+  const parts = branch.split('/');
+  const name = parts.length < 2 ? branch : parts.slice(1).join('/');
+  return name.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).trim();
+}
+
+function getPlatformRemote(platform: 'gitlab' | 'github'): string {
+  const remotes = execSync('git remote', { encoding: 'utf-8' }).trim().split('\n');
+  const matched: string[] = [];
+  for (const name of remotes) {
+    const url = execSync(`git remote get-url ${name}`, { encoding: 'utf-8' }).trim();
+    if (platform === 'github' && url.includes('github.com')) matched.push(name);
+    if (platform === 'gitlab' && (url.includes('gitlab.com') || url.includes('gitlab.'))) matched.push(name);
+  }
+  if (matched.length === 0) throw new Error(`No ${platform} remote found. Add a ${platform === 'github' ? 'GitHub' : 'GitLab'} remote first.`);
+  const name = matched.includes('origin') ? 'origin' : matched[0];
+  return execSync(`git remote get-url ${name}`, { encoding: 'utf-8' }).trim();
 }
