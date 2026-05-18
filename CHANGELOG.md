@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.0](https://github.com/solehudin5699/mergist/compare/v1.1.0...v1.2.0) (2026-05-18)
+
+### Bug Fixes
+
+* add loading indicator for command diff ([352bcf3](https://github.com/solehudin5699/mergist/commit/352bcf30a961b6bff75f126f1df02cb9982901d6))
+* fix bug updatePRDescription ([410db80](https://github.com/solehudin5699/mergist/commit/410db805c500818847fb06e95c3f5fe32bab2b41))
+* update loading indicator for command diff ([0a1937a](https://github.com/solehudin5699/mergist/commit/0a1937ab446e7e199894ba19e3890354d37c95b5))
+
 ## [1.1.0](https://github.com/solehudin5699/mergist/compare/v1.0.0...v1.1.0) (2026-05-18)
 
 ### Features
