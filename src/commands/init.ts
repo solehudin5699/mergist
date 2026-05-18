@@ -9,6 +9,7 @@ import type { Platform, Language, Config, Section, AIProvider } from '../types.j
 import { PROVIDER_PRESETS } from '../types.js';
 import { printNextSteps } from '../steps.js';
 import { PKG_NAME, PKG_DESCRIPTION, PKG_VERSION, ALL_SECTIONS } from '../constants.js';
+import { printBanner } from '../banner.js';
 
 function ensureMergistStage(content: string): string {
   if (!/^stages:$/m.test(content)) return content;
@@ -46,6 +47,7 @@ function mergeGitLabCI(oldContent: string, newTemplate: string): string {
 export async function initAction(): Promise<void> {
   const cwd = process.cwd();
 
+  printBanner();
   intro(`${PKG_NAME} v${PKG_VERSION}\n${PKG_DESCRIPTION}`);
 
   const platform = (await select({

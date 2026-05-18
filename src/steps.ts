@@ -1,13 +1,5 @@
 import type { Platform } from './types.js';
-
-const c = {
-  bold: (s: string) => `\x1b[1m${s}\x1b[22m`,
-  cyan: (s: string) => `\x1b[36m${s}\x1b[39m`,
-  green: (s: string) => `\x1b[32m${s}\x1b[39m`,
-  yellow: (s: string) => `\x1b[33m${s}\x1b[39m`,
-  magenta: (s: string) => `\x1b[35m${s}\x1b[39m`,
-  gray: (s: string) => `\x1b[38;5;250m${s}\x1b[39m`,
-};
+import { c } from './constants.js';
 
 type Step = { num: string; title: string; details: string[] };
 

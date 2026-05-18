@@ -1,4 +1,3 @@
-import { spinner } from '@clack/prompts';
 import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 import { execSync } from 'child_process';
@@ -8,6 +7,7 @@ import { OpenAIProvider } from '../providers/openai.js';
 import { PROVIDER_PRESETS } from '../types.js';
 import { buildUserPrompt, buildSystemMessage } from '../prompts.js';
 import { AI_SECTIONS, HUMAN_SECTIONS, ALL_SECTIONS } from '../constants.js';
+import { startBreathing } from '../banner.js';
 
 function loadEnvFile(path = '.env') {
   try {
@@ -110,13 +110,13 @@ export async function diffAction(opts: { from?: string; to?: string }): Promise<
   const systemMessage = buildSystemMessage(type, config.lang);
 
   let description: string;
-  const s = spinner();
-  s.start('Generating...');
+  const anim = startBreathing('Generating...');
   try {
     description = await provider.generate(prompt, diff.slice(0, config.maxDiffChars || 8000), systemMessage);
-    s.stop('Done');
+    anim.stop('Done');
+    console.log('');
   } catch (err: any) {
-    s.stop('Failed');
+    anim.stop('Failed');
     console.error(`AI request failed: ${err.message}`);
     if (err.response?.status === 401) {
       console.error('Check your API key in .env or AI_API_KEY environment variable.');
