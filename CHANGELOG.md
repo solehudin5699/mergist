@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.0](https://github.com/solehudin5699/mergist/compare/v1.0.0...v1.1.0) (2026-05-18)
+
+### Features
+
+* add command diff to get desc locally ([3e3c540](https://github.com/solehudin5699/mergist/commit/3e3c54007c1f997d289c0eec3b318df98497e8ef))
+
 ## 1.0.0 (2026-05-17)
 
 ### Features
