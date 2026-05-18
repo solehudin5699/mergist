@@ -6,7 +6,7 @@ import { buildTemplate, splitSections, wrapInMarkers } from '../templates/defaul
 import { OpenAIProvider } from '../providers/openai.js';
 import { PROVIDER_PRESETS } from '../types.js';
 import { buildUserPrompt, buildSystemMessage } from '../prompts.js';
-import { AI_SECTIONS, HUMAN_SECTIONS, ALL_SECTIONS } from '../constants.js';
+import { c, AI_SECTIONS, HUMAN_SECTIONS, ALL_SECTIONS } from '../constants.js';
 import { startBreathing } from '../banner.js';
 
 function loadEnvFile(path = '.env') {
@@ -117,10 +117,10 @@ export async function diffAction(opts: { from?: string; to?: string }): Promise<
     console.log('');
   } catch (err: any) {
     anim.stop('Failed');
-    console.error(`AI request failed: ${err.message}`);
-    if (err.response?.status === 401) {
-      console.error('Check your API key in .env or AI_API_KEY environment variable.');
-    }
+    const status = err.response?.status;
+    const apiErr = err.response?.data?.error;
+    console.error(`${c.red('AI request failed')}${status ? ` (${status})` : ''}`);
+    if (apiErr?.message) console.error(`  ${c.cyan('API:')} ${apiErr.message}`);
     process.exit(0);
   }
   const wrapped = wrapInMarkers(description, sections);

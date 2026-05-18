@@ -46,7 +46,10 @@ export async function generateAction(opts: { platform?: string }): Promise<void>
     try {
       await generator.generate();
     } catch (err: any) {
-      console.error(`[MR Generator] ✗ ${err.message}`);
+      const status = err.response?.status;
+      const apiErr = err.response?.data?.error;
+      console.error(`[MR Generator] ✗ AI request failed${status ? ` (${status})` : ''}`);
+      if (apiErr?.message) console.error(`  API: ${apiErr.message}`);
       process.exit(0);
     }
   } else if (platform === 'github') {
@@ -65,7 +68,10 @@ export async function generateAction(opts: { platform?: string }): Promise<void>
     try {
       await generator.generate();
     } catch (err: any) {
-      console.error(`[MR Generator] ✗ ${err.message}`);
+      const status = err.response?.status;
+      const apiErr = err.response?.data?.error;
+      console.error(`[MR Generator] ✗ AI request failed${status ? ` (${status})` : ''}`);
+      if (apiErr?.message) console.error(`  API: ${apiErr.message}`);
       process.exit(0);
     }
   }
