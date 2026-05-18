@@ -56,6 +56,8 @@ configCommands
       config.platform = value as Platform;
     } else if (key === 'maxDiffChars') {
       config.maxDiffChars = parseInt(value, 10);
+    } else if (key === 'maxTokens') {
+      config.maxTokens = parseInt(value, 10);
     } else if (key === 'aiProvider') {
       const validProviders = ['openai', 'deepseek', 'groq', 'custom'];
       if (!validProviders.includes(value)) {
@@ -95,7 +97,7 @@ configCommands
       if (config.ciTargetBranches?.length === 0) config.ciTargetBranches = undefined;
     } else {
       console.error(`❌ Unknown key: ${key}`);
-      console.log('Available keys: platform, maxDiffChars, aiProvider, lang, autoUpdate, templates, ciTargetBranches');
+      console.log('Available keys: platform, maxDiffChars, maxTokens, aiProvider, lang, autoUpdate, templates, ciTargetBranches');
       process.exit(1);
     }
 

@@ -26,7 +26,7 @@ export async function generateAction(opts: { platform?: string }): Promise<void>
     process.exit(1);
   }
 
-  const provider = new OpenAIProvider(apiKey, model, baseUrl);
+  const provider = new OpenAIProvider(apiKey, model, baseUrl, config.maxTokens);
 
   const type = platform === 'gitlab' ? 'mr' : 'pr';
   const template = buildTemplate(type, config.templates || ['summary', 'changes', 'review', 'testing', 'notes', 'references'], config.lang);

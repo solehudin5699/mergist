@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
-import type { Config, Platform } from './types.js';
+import type { Config } from './types.js';
+import { MAX_TOKENS } from './constants.js';
 
 const sectionSchema = z.enum(['summary', 'changes', 'review', 'testing', 'notes', 'references']);
 
@@ -16,6 +17,7 @@ const configSchema = z.object({
   aiProvider: z.enum(['openai', 'deepseek', 'groq', 'custom']).default('openai'),
   lang: z.enum(['id', 'en']).default('id'),
   maxDiffChars: z.number().default(8000),
+  maxTokens: z.number().int().positive().default(MAX_TOKENS),
   autoUpdate: z.boolean().default(true),
   templates: z.array(sectionSchema).default(['summary', 'changes', 'review', 'testing', 'notes', 'references']),
   providers: z.record(z.string(), providerConfigSchema.optional()),
@@ -27,6 +29,7 @@ const defaultConfig: Config = {
   aiProvider: 'openai',
   lang: 'id',
   maxDiffChars: 8000,
+  maxTokens: MAX_TOKENS,
   autoUpdate: true,
   templates: ['summary', 'changes', 'review', 'testing', 'notes', 'references'],
   providers: {

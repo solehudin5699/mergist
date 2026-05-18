@@ -26,6 +26,7 @@ export interface Config {
   aiProvider: AIProvider;
   lang: Language;
   maxDiffChars: number;
+  maxTokens: number;
   autoUpdate: boolean;
   templates: Section[];
   providers: {

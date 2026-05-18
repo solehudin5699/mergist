@@ -22,11 +22,13 @@ export class OpenAIProvider implements AIProviderInterface {
   private apiKey: string;
   private model: string;
   private baseUrl: string;
+  private maxTokens: number;
 
-  constructor(apiKey: string, model: string = 'gpt-4o', baseUrl: string = 'https://api.openai.com/v1') {
+  constructor(apiKey: string, model: string = 'gpt-4o', baseUrl: string = 'https://api.openai.com/v1', maxTokens: number = MAX_TOKENS) {
     this.apiKey = apiKey;
     this.model = model;
     this.baseUrl = baseUrl;
+    this.maxTokens = maxTokens;
   }
 
   async generate(prompt: string, diff: string, systemMessage?: string): Promise<string> {
@@ -34,7 +36,7 @@ export class OpenAIProvider implements AIProviderInterface {
       `${this.baseUrl}/chat/completions`,
       {
         model: this.model,
-        max_tokens: MAX_TOKENS,
+        max_tokens: this.maxTokens,
         messages: [
           {
             role: 'system',

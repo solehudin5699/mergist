@@ -178,7 +178,7 @@ async function callAI(prompt, diff) {
   const res = await httpRequest(BASE_URL + '/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': \`Bearer \${AI_API_KEY}\` }
-  }, { model: MODEL, max_tokens: ${MAX_TOKENS}, messages: [{ role: 'system', content: SYSTEM_MESSAGE }, { role: 'user', content: prompt + '\\n\\nGIT DIFF:\\n' + diff.slice(0, MAX_DIFF_CHARS) }] });
+  }, { model: MODEL, max_tokens: ${config.maxTokens || MAX_TOKENS}, messages: [{ role: 'system', content: SYSTEM_MESSAGE }, { role: 'user', content: prompt + '\\n\\nGIT DIFF:\\n' + diff.slice(0, MAX_DIFF_CHARS) }] });
   if (res.status !== 200) {
     const err = new Error(\`AI error (HTTP \${res.status})\`);
     err.status = res.status;

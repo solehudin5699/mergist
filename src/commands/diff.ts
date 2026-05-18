@@ -99,7 +99,7 @@ export async function diffAction(opts: { from?: string; to?: string }): Promise<
 
   const model = providerCfg?.model || 'gpt-4o';
   const baseUrl = providerCfg?.baseUrl || PROVIDER_PRESETS[providerKey]?.baseUrl || 'https://api.openai.com/v1';
-  const provider = new OpenAIProvider(apiKey, model, baseUrl);
+  const provider = new OpenAIProvider(apiKey, model, baseUrl, config.maxTokens);
 
   const sections = config.templates || ALL_SECTIONS;
   const type = config.platform === 'gitlab' ? 'mr' : 'pr';

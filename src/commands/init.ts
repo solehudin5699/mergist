@@ -110,6 +110,7 @@ export async function initAction(): Promise<void> {
 
   let model = existingConfig.providers?.[existingConfig.aiProvider]?.model || '';
   let maxDiffChars = existingConfig.maxDiffChars;
+  let maxTokens = existingConfig.maxTokens;
   let lang: Language = existingConfig.lang;
   let aiProvider: AIProvider = existingConfig.aiProvider || 'openai';
   let apiBaseUrl = existingConfig.providers?.[aiProvider]?.baseUrl || '';
@@ -156,6 +157,13 @@ export async function initAction(): Promise<void> {
     });
     if (isCancel(maxDiffInput)) process.exit(0);
     maxDiffChars = parseInt(maxDiffInput as string, 10);
+
+    const maxTokensInput = await text({
+      message: 'Max output tokens',
+      initialValue: String(maxTokens),
+    });
+    if (isCancel(maxTokensInput)) process.exit(0);
+    maxTokens = parseInt(maxTokensInput as string, 10);
 
     const langResult = await select({
       message: 'Output language',
@@ -204,6 +212,7 @@ export async function initAction(): Promise<void> {
     aiProvider,
     lang,
     maxDiffChars,
+    maxTokens,
     autoUpdate,
     templates: sections,
     providers: {
