@@ -1,11 +1,16 @@
 import axios from 'axios';
 
 function getProjectPath(remoteUrl: string): string {
-  const sshMatch = remoteUrl.match(/^git@(.+?):(.+?)\.git$/);
+  const normalized = remoteUrl.replace(/\.git$/, '');
+
+  const sshMatch = normalized.match(/^git@(.+?):(.+?)$/);
   if (sshMatch) return sshMatch[2];
 
-  const httpsMatch = remoteUrl.match(/^https:\/\/(.+?)\/(.+?)\.git$/);
+  const httpsMatch = normalized.match(/^https:\/\/(.+?)\/(.+?)$/);
   if (httpsMatch) return httpsMatch[2];
+
+  const gitMatch = normalized.match(/^git:\/\/(.+?)\/(.+?)$/);
+  if (gitMatch) return gitMatch[2];
 
   throw new Error(`Unrecognized GitLab remote URL: ${remoteUrl}`);
 }
@@ -20,6 +25,12 @@ export function getGitLabApiUrl(remoteUrl: string): string {
   const httpsMatch = remoteUrl.match(/^https:\/\/(.+?)\//);
   if (httpsMatch) {
     const host = httpsMatch[1];
+    return host === 'gitlab.com' ? 'https://gitlab.com/api/v4' : `https://${host}/api/v4`;
+  }
+
+  const gitMatch = remoteUrl.match(/^git:\/\/(.+?)\//);
+  if (gitMatch) {
+    const host = gitMatch[1];
     return host === 'gitlab.com' ? 'https://gitlab.com/api/v4' : `https://${host}/api/v4`;
   }
 
