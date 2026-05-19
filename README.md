@@ -2,19 +2,35 @@
 
 Generate merge request and pull request descriptions from your git diff.
 
-## Getting Started
+## Usage
 
-1. **Init** — run `npx mergist init` in your project, select a platform and configure settings. Init displays detailed platform-specific setup steps.
-2. **Setup credentials** — for CI: follow on-screen steps. For local: create `.env` with `AI_API_KEY`.
-3. **Commit** — commit the generated files (`.mergistrc`, CI workflow, and optional standalone script)
-4. **Create MR/PR** — open a new merge request or pull request targeting other branch
-5. **Automated** — CI runs, AI generates the description, and the description gets updated
+mergist can be used in two ways: **automated in CI** (generates description every MR/PR) or **manually from your terminal** (preview and optionally create a Draft MR/PR).
 
-> **Local preview?** After init, create `.env` with `AI_API_KEY`
-> and run `npx mergist diff -f feature -t main` anytime to preview descriptions locally.
-> Works with or without CI.
+### CI
 
-### Commands
+1. **Init with CI** — `npx mergist init` → answer Yes to "Configure CI pipeline?"
+2. **Push** — commit generated files (.mergistrc, CI workflow, and optional standalone script)
+3. **Setup secrets** — see [Setting up secrets](https://github.com/solehudin5699/mergist#setting-up-secrets)
+4. **Create MR/PR** — CI triggers on merge request / pull request events and generates description automatically
+
+### Manual (local)
+
+1. **Init** — `npx mergist init` in your project, select a platform and configure settings
+2. **Configure `.env`** — in your project root:
+
+   ```
+   AI_API_KEY=sk-...                # Required
+   GITLAB_TOKEN=glpat-...           # Optional: for creating draft MRs
+   GITHUB_TOKEN=github_pat_...      # Optional: for creating draft PRs
+   ```
+
+3. **Preview & create draft** — `npx mergist diff -f feature -t main`
+   - Displays AI-generated description preview
+   - Optionally create a Draft MR/PR after preview
+   - Title auto-generated from branch name
+   - Tokens not in `.env` prompted interactively
+
+## Commands
 
 ```bash
 # Interactive init (scaffold config, CI, templates)
@@ -24,7 +40,7 @@ npx mergist init
 npx mergist generate --platform gitlab
 npx mergist generate --platform github
 
-# Preview description from local git diff (requires AI_API_KEY in .env)
+# Generate description locally and optionally create a Draft MR/PR
 npx mergist diff -f feature -t main
 
 # Manage config
@@ -36,7 +52,7 @@ npx mergist config set <key> <value>
 |---------|-------------|---------|
 | `init` | Scaffold config, CI pipeline, and templates | — |
 | `generate` | Generate MR/PR description in CI | `-p, --platform <gitlab\|github>` (optional, falls back to config) |
-| `diff` | Preview description from local git diff | `-f, --from <branch>` (required), `-t, --to <branch>` (required) |
+| `diff` | Preview description and optionally create a Draft MR/PR from local git diff | `-f, --from <branch>` (required), `-t, --to <branch>` (required) |
 | `config show` | Display current configuration | — |
 | `config get <key>` | Get a specific config value | `platform`, `maxDiffChars`, `maxTokens`, `lang`, `autoUpdate`, `templates`, `ciTargetBranches` |
 | `config set <key> <value>` | Update a config key | e.g., `set lang en`, `set maxDiffChars 10000` |
@@ -60,13 +76,6 @@ During `init` you will be prompted for:
 | **Auto-update** | *(only if CI enabled)* Regenerate AI sections when new commits are pushed |
 
 After init completes, **detailed platform-specific next steps** are displayed with step-by-step instructions for setting up CI secrets, creating tokens, and committing files.
-
-To use `npx mergist diff`, **create a `.env` file** in your project root with your AI provider API key:
-
-```
-AI_API_KEY=sk-...
-```
-
 
 ## Features
 
@@ -149,13 +158,13 @@ jobs:
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
 ```
 
-### CI environment variables
+### Environment variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `AI_API_KEY` | Yes | API key for your AI provider |
-| `GITLAB_TOKEN` | GitLab only | GitLab API token (scope: `api`) |
-| `GITHUB_TOKEN` | GitHub only | Automatically provided by GitHub Actions |
+| Variable | Scope | Description |
+|----------|-------|-------------|
+| `AI_API_KEY` | All | API key for your AI provider |
+| `GITLAB_TOKEN` | CI + Local | GitLab project access token (scope: `api`). Used for creating draft MRs locally. |
+| `GITHUB_TOKEN` | CI + Local | Automatically provided by GitHub Actions. For local: fine-grained PAT with `Contents: Read` + `Pull requests: Read and write`. |
 
 ## Setting up secrets
 
@@ -217,6 +226,14 @@ jobs:
 - **GitLab Runner:** GitLab CI requires a runner to execute jobs. If your self-hosted instance has no available runner, the CI pipeline will remain stuck in "pending" state.
   - **Check available runners:** Settings → CI/CD → Runners
   - If none available, register a new runner.
+
+- **GitHub Enterprise** — Not supported. The API base URL is hardcoded to `https://api.github.com`. Self-hosted GitHub Enterprise instances cannot be used as a target platform.
+
+- **Single platform per project** — `mergist` can only target one platform (GitLab or GitHub) per project. Using both simultaneously in a single `.mergistrc` configuration is not supported.
+
+- **Branch must be pushed** — Before creating a draft MR/PR via `mergist diff`, the source branch must already exist on the remote. `mergist` does not push branches for you; use `git push` first.
+
+- **Custom provider** — The custom AI provider option only supports OpenAI-compatible API endpoints. Other formats (e.g., Anthropic, Gemini direct API) are not supported.
 
 ## License
 
