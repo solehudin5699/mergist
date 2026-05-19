@@ -194,10 +194,10 @@ async function main() {
   const prInfo = await getPRInfo();
   const hasDesc = prInfo.body?.trim().length > 0;
 
-  if (hasDesc && !AUTO_UPDATE) { console.log('[PR Generator] Deskripsi sudah ada, autoUpdate=false, dilewati.'); return; }
+  if (hasDesc && !AUTO_UPDATE) { console.log('[PR Generator] PR description already exists, autoUpdate=false, skipped.'); return; }
 
   const diff = await getPRDiff();
-  if (!diff.trim()) { console.log('[PR Generator] Tidak ada diff, dilewati.'); return; }
+  if (!diff.trim()) { console.log('[PR Generator] No diff, skipped.'); return; }
   const title = prInfo.title;
   const template = TEMPLATE;
   const prompt = \`${generatedPrompt}\`;
@@ -207,7 +207,7 @@ async function main() {
 
   const finalDesc = hasDesc ? preserveHumanSections(enrichedDesc, prInfo.body) : enrichedDesc;
   await updatePRDescription(finalDesc);
-  console.log('[PR Generator] ✓ Deskripsi PR berhasil diupdate!');
+  console.log('[PR Generator] ✓ PR description updated!');
 }
 
 main().catch(err => { console.error('[PR Generator] ✗', err.message); process.exit(0); });`;

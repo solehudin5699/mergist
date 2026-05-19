@@ -111,13 +111,13 @@ export class GitLabGenerator {
     const hasDescription = mrInfo.description?.trim().length > 0;
 
     if (hasDescription && !this.autoUpdate) {
-      console.log('[MR Generator] Deskripsi MR sudah ada, autoUpdate=false, dilewati.');
+      console.log('[MR Generator] MR description already exists, autoUpdate=false, skipped.');
       return;
     }
 
     const diff = await this.getMRDiff();
     if (!diff.trim()) {
-      console.log('[MR Generator] Tidak ada diff, dilewati.');
+      console.log('[MR Generator] No diff, skipped.');
       return;
     }
 
@@ -135,7 +135,7 @@ export class GitLabGenerator {
 
     await this.updateMRDescription(finalDescription);
 
-    console.log(`[MR Generator] ✓ Deskripsi MR berhasil diupdate!`);
+    console.log(`[MR Generator] ✓ MR description updated!`);
     console.log(`[MR Generator] MR: ${mrInfo.web_url}`);
   }
 }

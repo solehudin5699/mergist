@@ -129,13 +129,13 @@ export class GitHubGenerator {
     const hasDescription = prInfo.body?.trim().length > 0;
 
     if (hasDescription && !this.autoUpdate) {
-      console.log('[PR Generator] Deskripsi PR sudah ada, autoUpdate=false, dilewati.');
+      console.log('[PR Generator] PR description already exists, autoUpdate=false, skipped.');
       return;
     }
 
     const diff = await this.getPRDiff();
     if (!diff.trim()) {
-      console.log('[PR Generator] Tidak ada diff, dilewati.');
+      console.log('[PR Generator] No diff, skipped.');
       return;
     }
 
@@ -153,7 +153,7 @@ export class GitHubGenerator {
 
     await this.updatePRDescription(finalDescription);
 
-    console.log(`[PR Generator] ✓ Deskripsi PR berhasil diupdate!`);
+    console.log(`[PR Generator] ✓ PR description updated!`);
     console.log(`[PR Generator] PR: ${prInfo.html_url}`);
   }
 }

@@ -192,10 +192,10 @@ async function main() {
   const mrInfo = await getMRInfo();
   const hasDesc = mrInfo.description?.trim().length > 0;
 
-  if (hasDesc && !AUTO_UPDATE) { console.log('[MR Generator] Deskripsi sudah ada, autoUpdate=false, dilewati.'); return; }
+  if (hasDesc && !AUTO_UPDATE) { console.log('[MR Generator] MR description already exists, autoUpdate=false, skipped.'); return; }
 
   const diff = await getMRDiff();
-  if (!diff.trim()) { console.log('[MR Generator] Tidak ada diff, dilewati.'); return; }
+  if (!diff.trim()) { console.log('[MR Generator] No diff, skipped.'); return; }
   const title = mrInfo.title;
   const template = TEMPLATE;
   const prompt = \`${generatedPrompt}\`;
@@ -205,7 +205,7 @@ async function main() {
 
   const finalDesc = hasDesc ? preserveHumanSections(enrichedDesc, mrInfo.description) : enrichedDesc;
   await updateMRDescription(finalDesc);
-  console.log('[MR Generator] ✓ Deskripsi MR berhasil diupdate!');
+  console.log('[MR Generator] ✓ MR description updated!');
 }
 
 main().catch(err => { console.error('[MR Generator] ✗', err.message); process.exit(0); });`;
