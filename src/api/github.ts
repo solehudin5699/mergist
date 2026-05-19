@@ -2,11 +2,16 @@ import axios from 'axios';
 import { USER_AGENT } from '../constants.js';
 
 export function parseGitHubRemote(remoteUrl: string): { owner: string; repo: string } {
-  const sshMatch = remoteUrl.match(/^git@github\.com:(.+?)\/(.+?)\.git$/);
+  const normalized = remoteUrl.replace(/\.git$/, '');
+
+  const sshMatch = normalized.match(/^git@github\.com:(.+?)\/(.+?)$/);
   if (sshMatch) return { owner: sshMatch[1], repo: sshMatch[2] };
 
-  const httpsMatch = remoteUrl.match(/^https:\/\/github\.com\/(.+?)\/(.+?)\.git$/);
+  const httpsMatch = normalized.match(/^https:\/\/github\.com\/(.+?)\/(.+?)$/);
   if (httpsMatch) return { owner: httpsMatch[1], repo: httpsMatch[2] };
+
+  const gitMatch = normalized.match(/^git:\/\/github\.com\/(.+?)\/(.+?)$/);
+  if (gitMatch) return { owner: gitMatch[1], repo: gitMatch[2] };
 
   throw new Error(`Unrecognized GitHub remote URL: ${remoteUrl}`);
 }
