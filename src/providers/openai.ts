@@ -8,7 +8,6 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
     catch (err: any) {
       if (i < retries - 1 && err.response?.status === 429) {
         const delay = Math.pow(2, i) * 1000;
-        console.log(`[MR Generator] Rate limited, retrying in ${delay}ms...`);
         await new Promise(r => setTimeout(r, delay));
         continue;
       }
