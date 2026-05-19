@@ -235,6 +235,8 @@ jobs:
 
 - **Custom provider** — The custom AI provider option only supports OpenAI-compatible API endpoints. Other formats (e.g., Anthropic, Gemini direct API) are not supported.
 
+- **AI output quality** — The generated description quality depends on the AI provider, model, max diff characters, and max tokens configuration. Different models may produce varying results. Adjust `maxDiffChars` (more diff context) or `maxTokens` (longer output) in `.mergistrc` to improve results.
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
