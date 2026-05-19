@@ -125,6 +125,11 @@ export async function diffAction(opts: { from?: string; to?: string }): Promise<
     if (apiErr?.message) console.error(`  ${c.cyan('API:')} ${apiErr.message}`);
     process.exit(0);
   }
+  if (!description.trim()) {
+    anim.stop('Failed');
+    console.error(`${c.red('AI returned empty response.')} ${c.cyan('Try again or check your AI provider.')}`);
+    process.exit(0);
+  }
   const wrapped = wrapInMarkers(description, sections);
 
   const parsedSections = splitSections(wrapped);
