@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.3.0](https://github.com/solehudin5699/mergist/compare/v1.2.0...v1.3.0) (2026-05-19)
+
+### Features
+
+* add banner mergist on init & diff ([d358de1](https://github.com/solehudin5699/mergist/commit/d358de1bf98e40971951a119279eb25c074eb8aa))
+* **diff:** add create draft MR/PR after analyze diff ([eccd14d](https://github.com/solehudin5699/mergist/commit/eccd14dd7126e1b2c7f9118b28c1dedd6c9393bc))
+* **generate&diff:** add error message ([cc0a102](https://github.com/solehudin5699/mergist/commit/cc0a10264f1611cfc7442a15540226ae12e3e1ba))
+
+### Bug Fixes
+
+* **diff:** remove unused error git ([fa3508c](https://github.com/solehudin5699/mergist/commit/fa3508c29af3aab537521772628ec7af36b32a5f))
+* fix validation empty reponse ([a562611](https://github.com/solehudin5699/mergist/commit/a5626115a6e77e1fd520a64b88196836768e531d))
+* fix validation remote url github ([c89cc58](https://github.com/solehudin5699/mergist/commit/c89cc5872e8acfe09c059fec5c109fc212a811a9))
+* fix validation remote url gitlab ([fb29d09](https://github.com/solehudin5699/mergist/commit/fb29d0961fdd65f967d70c9cd533390689fe448c))
+* minor logs ([f0a5844](https://github.com/solehudin5699/mergist/commit/f0a5844981b267b916ac76a57368b443c661a76c))
+* remove log retry ([e3d0d56](https://github.com/solehudin5699/mergist/commit/e3d0d5630220aa593f7264b3a9b711103f6d3849))
+
 ## [1.2.0](https://github.com/solehudin5699/mergist/compare/v1.1.0...v1.2.0) (2026-05-18)
 
 ### Bug Fixes
