@@ -24,6 +24,19 @@ mergist can be used in two ways: **automated in CI** (generates description ever
    GITHUB_TOKEN=github_pat_...      # Optional: for creating draft PRs
    ```
 
+   **Where to get tokens:**
+
+   *GitHub (fine-grained PAT):*
+   - Go to https://github.com/settings/personal-access-tokens
+   - Generate new fine-grained token → Repository access → select repos
+   - Permissions: **Contents: Read** → **Pull requests: Read and write**
+   - Add to `.env` as `GITHUB_TOKEN=github_pat_...`
+
+   *GitLab (project access token):*
+   - Go to your project → **Settings** → **Access Tokens**
+   - Add new token: name `mergist`, role `Developer`, scope **api**
+   - Add to `.env` as `GITLAB_TOKEN=glpat-...`
+
 3. **Preview & create draft** — `npx mergist diff -f feature -t main`
    - Displays AI-generated description preview
    - Optionally create a Draft MR/PR after preview
