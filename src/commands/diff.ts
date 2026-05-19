@@ -219,14 +219,14 @@ function titleFromBranch(branch: string): string {
 }
 
 function getPlatformRemote(platform: 'gitlab' | 'github'): string {
-  const remotes = execSync('git remote', { encoding: 'utf-8' }).trim().split('\n');
+  const remotes = execSync('git remote', { encoding: 'utf-8', stdio: 'pipe' }).trim().split('\n').filter(Boolean);
   const matched: string[] = [];
   for (const name of remotes) {
-    const url = execSync(`git remote get-url ${name}`, { encoding: 'utf-8' }).trim();
+    const url = execSync(`git remote get-url ${name}`, { encoding: 'utf-8', stdio: 'pipe' }).trim();
     if (platform === 'github' && url.includes('github.com')) matched.push(name);
     if (platform === 'gitlab' && (url.includes('gitlab.com') || url.includes('gitlab.'))) matched.push(name);
   }
   if (matched.length === 0) throw new Error(`No ${platform} remote found. Add a ${platform === 'github' ? 'GitHub' : 'GitLab'} remote first.`);
   const name = matched.includes('origin') ? 'origin' : matched[0];
-  return execSync(`git remote get-url ${name}`, { encoding: 'utf-8' }).trim();
+  return execSync(`git remote get-url ${name}`, { encoding: 'utf-8', stdio: 'pipe' }).trim();
 }
