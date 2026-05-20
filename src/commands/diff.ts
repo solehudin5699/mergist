@@ -4,6 +4,7 @@ import { execSync } from 'child_process';
 import { loadConfig, getConfigPath } from '../config.js';
 import { buildTemplate, splitSections, wrapInMarkers } from '../templates/default.js';
 import { OpenAIProvider } from '../providers/openai.js';
+import { AnthropicProvider } from '../providers/anthropic.js';
 import { PROVIDER_PRESETS } from '../types.js';
 import { buildUserPrompt, buildSystemMessage } from '../prompts.js';
 import { c, AI_SECTIONS, HUMAN_SECTIONS, ALL_SECTIONS } from '../constants.js';
@@ -99,9 +100,11 @@ export async function diffAction(opts: { from?: string; to?: string }): Promise<
     apiKey = result as string;
   }
 
-  const model = providerCfg?.model || 'gpt-4o';
+  const model = providerCfg?.model || PROVIDER_PRESETS[providerKey]?.defaultModel || 'gpt-4o';
   const baseUrl = providerCfg?.baseUrl || PROVIDER_PRESETS[providerKey]?.baseUrl || 'https://api.openai.com/v1';
-  const provider = new OpenAIProvider(apiKey, model, baseUrl, config.maxTokens);
+  const provider = providerKey === 'anthropic'
+    ? new AnthropicProvider(apiKey, model, config.maxTokens)
+    : new OpenAIProvider(apiKey, model, baseUrl, config.maxTokens);
 
   const sections = config.templates || ALL_SECTIONS;
   const type = config.platform === 'gitlab' ? 'mr' : 'pr';

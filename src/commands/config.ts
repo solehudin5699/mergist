@@ -59,7 +59,7 @@ configCommands
     } else if (key === 'maxTokens') {
       config.maxTokens = parseInt(value, 10);
     } else if (key === 'aiProvider') {
-      const validProviders = ['openai', 'deepseek', 'groq', 'custom'];
+      const validProviders = ['openai', 'deepseek', 'groq', 'anthropic', 'custom'];
       if (!validProviders.includes(value)) {
         console.error(`❌ aiProvider must be one of: ${validProviders.join(', ')}`);
         process.exit(1);

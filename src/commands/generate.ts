@@ -4,6 +4,7 @@ import { buildTemplate } from '../templates/default.js';
 import { GitLabGenerator } from '../generators/gitlab.js';
 import { GitHubGenerator } from '../generators/github.js';
 import { OpenAIProvider } from '../providers/openai.js';
+import { AnthropicProvider } from '../providers/anthropic.js';
 import { PROVIDER_PRESETS } from '../types.js';
 
 export async function generateAction(opts: { platform?: string }): Promise<void> {
@@ -17,7 +18,7 @@ export async function generateAction(opts: { platform?: string }): Promise<void>
 
   const providerKey = config.aiProvider || 'openai';
   const providerCfg = config.providers[providerKey] || { apiKey: 'env:AI_API_KEY', model: 'gpt-4o', baseUrl: '' };
-  const model = providerCfg.model || 'gpt-4o';
+  const model = providerCfg.model || PROVIDER_PRESETS[providerKey]?.defaultModel || 'gpt-4o';
   const baseUrl = providerCfg.baseUrl || PROVIDER_PRESETS[providerKey]?.baseUrl || 'https://api.openai.com/v1';
   const envKey = providerCfg.apiKey?.replace(/^env:/, '') || 'AI_API_KEY';
   const apiKey = process.env[envKey];
@@ -26,7 +27,9 @@ export async function generateAction(opts: { platform?: string }): Promise<void>
     process.exit(1);
   }
 
-  const provider = new OpenAIProvider(apiKey, model, baseUrl, config.maxTokens);
+  const provider = providerKey === 'anthropic'
+    ? new AnthropicProvider(apiKey, model, config.maxTokens)
+    : new OpenAIProvider(apiKey, model, baseUrl, config.maxTokens);
 
   const type = platform === 'gitlab' ? 'mr' : 'pr';
   const template = buildTemplate(type, config.templates || ['summary', 'changes', 'review', 'testing', 'notes', 'references'], config.lang);
