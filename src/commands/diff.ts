@@ -264,7 +264,7 @@ export async function diffAction(opts: { from?: string; to?: string; url?: strin
     const targetUrl = opts.url!;
     const updateConfirm = await confirm({
       message: `Update description for this ${targetType}?`,
-      initialValue: false,
+      initialValue: true,
     });
     if (!updateConfirm || isCancel(updateConfirm)) return;
 
