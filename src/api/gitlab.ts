@@ -46,6 +46,44 @@ export async function getProjectId(token: string, apiUrl: string, remoteUrl: str
   return String(response.data.id);
 }
 
+export async function getProjectIdByPath(token: string, apiUrl: string, projectPath: string): Promise<string> {
+  const encodedPath = encodeURIComponent(projectPath);
+  const response = await axios.get(`${apiUrl}/projects/${encodedPath}`, {
+    headers: { 'PRIVATE-TOKEN': token },
+  });
+  return String(response.data.id);
+}
+
+export async function getMRInfo(
+  token: string, apiUrl: string, projectId: string, mrNumber: string
+) {
+  const { data } = await axios.get(
+    `${apiUrl}/projects/${projectId}/merge_requests/${mrNumber}`,
+    { headers: { 'PRIVATE-TOKEN': token } }
+  );
+  return data;
+}
+
+export async function getMRDiff(
+  token: string, apiUrl: string, projectId: string, mrNumber: string
+) {
+  const { data } = await axios.get(
+    `${apiUrl}/projects/${projectId}/merge_requests/${mrNumber}/diffs`,
+    { headers: { 'PRIVATE-TOKEN': token } }
+  );
+  return data;
+}
+
+export async function updateMRDescription(
+  token: string, apiUrl: string, projectId: string, mrNumber: string, description: string
+) {
+  await axios.put(
+    `${apiUrl}/projects/${projectId}/merge_requests/${mrNumber}`,
+    { description },
+    { headers: { 'Content-Type': 'application/json', 'PRIVATE-TOKEN': token } }
+  );
+}
+
 export async function createMR(
   token: string,
   apiUrl: string,

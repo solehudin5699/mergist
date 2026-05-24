@@ -16,6 +16,53 @@ export function parseGitHubRemote(remoteUrl: string): { owner: string; repo: str
   throw new Error(`Unrecognized GitHub remote URL: ${remoteUrl}`);
 }
 
+export async function getPRInfo(
+  token: string, owner: string, repo: string, prNumber: string
+) {
+  const { data } = await axios.get(
+    `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github.v3+json',
+        'User-Agent': USER_AGENT,
+      },
+    }
+  );
+  return data;
+}
+
+export async function getPRFiles(
+  token: string, owner: string, repo: string, prNumber: string
+) {
+  const { data } = await axios.get(
+    `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}/files`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github.v3+json',
+        'User-Agent': USER_AGENT,
+      },
+    }
+  );
+  return data;
+}
+
+export async function updatePRDescription(
+  token: string, owner: string, repo: string, prNumber: string, body: string
+) {
+  await axios.patch(
+    `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}`,
+    { body },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+}
+
 export async function createPR(
   token: string,
   owner: string,

@@ -9,8 +9,9 @@ import { PROVIDER_PRESETS } from '../types.js';
 import { buildUserPrompt, buildSystemMessage } from '../prompts.js';
 import { c, AI_SECTIONS, HUMAN_SECTIONS, ALL_SECTIONS } from '../constants.js';
 import { startBreathing } from '../banner.js';
-import { createMR, getProjectId, getGitLabApiUrl } from '../api/gitlab.js';
-import { createPR, parseGitHubRemote } from '../api/github.js';
+import { createMR, getProjectId, getProjectIdByPath, getGitLabApiUrl, getMRInfo, getMRDiff, updateMRDescription } from '../api/gitlab.js';
+import { createPR, parseGitHubRemote, getPRInfo, getPRFiles, updatePRDescription } from '../api/github.js';
+import { parseMrPrUrl, ParsedMrPr } from '../utils/url-parser.js';
 
 function loadEnvFile(path = '.env') {
   try {
@@ -41,55 +42,159 @@ function colorizeOutput(output: string): string {
   return clean;
 }
 
-export async function diffAction(opts: { from?: string; to?: string }): Promise<void> {
+export async function diffAction(opts: { from?: string; to?: string; url?: string }): Promise<void> {
   if (!existsSync(getConfigPath())) {
     console.error('No configuration found. Run `mergist init` first.');
     process.exit(1);
   }
 
   const config = loadConfig();
+  loadEnvFile();
 
-  const fromBranch = opts.from!;
-  const toBranch = opts.to!;
+  if (opts.url && (opts.from || opts.to)) {
+    console.error(`${c.red('Error:')} Cannot use ${c.cyan('--url')} together with ${c.cyan('-f/-t')}. Choose one.\n`);
+    console.error(`  ${c.cyan('Usage for URL:')}     $ mergist diff ${c.bold('-u <mr/pr-url>')}`);
+    console.error(`  ${c.cyan('Usage for local branches:')}  $ mergist diff ${c.bold('-f <source> -t <target>')}`);
+    console.error(`  ${c.cyan('Usage for URL:')}     $ mergist diff ${c.bold('-u <mr/pr-url>')}`);
+    process.exit(1);
+  }
 
-  const errors: string[] = [];
-  try {
-    execSync(`git rev-parse --verify ${fromBranch}`, { encoding: 'utf-8', stdio: 'pipe' });
-  } catch {
-    errors.push(`Source branch "${fromBranch}" not found.`);
+  if (!opts.url && (opts.from && !opts.to || !opts.from && opts.to)) {
+    console.error(`${c.red('Error:')} Both ${c.cyan('-f')} (from/source local branch) and ${c.cyan('-t')} (to/target local branch) are required.\n`);
+    console.error(`  ${c.cyan('Usage:')}  $ mergist diff ${c.bold('-f <source> -t <target>')}`);
+    console.error(`  ${c.cyan('Or using URL:')}  $ mergist diff ${c.bold('-u <mr/pr-url>')}`);
+    process.exit(1);
   }
-  try {
-    execSync(`git rev-parse --verify ${toBranch}`, { encoding: 'utf-8', stdio: 'pipe' });
-  } catch {
-    errors.push(`Target branch "${toBranch}" not found.`);
-  }
-  if (errors.length) {
-    for (const err of errors) console.error(err);
+
+  if (!opts.url && !opts.from && !opts.to) {
+    console.error(`${c.red('Error:')} Missing required arguments.\n`);
+    console.error(`  ${c.cyan('Usage for URL:')}     $ mergist diff ${c.bold('-u <mr/pr-url>')}`);
+    console.error(`  ${c.cyan('Usage for local branches:')}  $ mergist diff ${c.bold('-f <source> -t <target>')}`);
     process.exit(1);
   }
 
   let diff: string;
-  try {
-    diff = execSync(`git diff ${toBranch}...${fromBranch}`, { encoding: 'utf-8' }).trim();
-  } catch {
+  let fromBranch = '';
+  let toBranch = '';
+
+  if (opts.url) {
+    // URL-based flow
+    let parsed: ParsedMrPr;
     try {
-      diff = execSync(`git diff ${toBranch}..${fromBranch}`, { encoding: 'utf-8' }).trim();
-    } catch {
-      console.error(`Failed to diff "${fromBranch}" vs "${toBranch}".`);
+      parsed = parseMrPrUrl(opts.url);
+      if (parsed.platform !== config.platform) {
+        const target = config.platform === 'gitlab' ? 'GitLab MR' : 'GitHub PR';
+        const given = parsed.platform === 'gitlab' ? 'GitLab MR' : 'GitHub PR';
+        console.error(`\n${c.red('Error:')} Expected ${c.cyan(target)} URL, got ${c.cyan(given)}.`);
+        console.error(`  Run ${c.bold('mergist init')} to change platform, or use the correct URL.\n`);
+        process.exit(1);
+      }
+    } catch (err: any) {
+      console.error(`\n${c.red('Error:')} Invalid URL. ${c.cyan('Expected format:')}`);
+      console.error(`  ${c.bold('https://gitlab.com/group/project/-/merge_requests/123')}`);
+      console.error(`  ${c.bold('https://github.com/owner/repo/pull/123')}`);
       process.exit(1);
     }
-  }
 
-  if (!diff) {
-    console.log(`No diff between "${fromBranch}" and "${toBranch}".`);
-    process.exit(0);
+    const tokenEnvKey = parsed.platform === 'gitlab' ? 'GITLAB_TOKEN' : 'GITHUB_TOKEN';
+    let platformToken = process.env[tokenEnvKey];
+    if (!platformToken) {
+      console.log(`Set ${tokenEnvKey} in .env to skip this prompt.`);
+      const { password, isCancel } = await import('@clack/prompts');
+      const result = await password({ message: `Enter ${tokenEnvKey}:` });
+      if (isCancel(result)) process.exit(0);
+      platformToken = result as string;
+      process.env[tokenEnvKey] = platformToken;
+    }
+
+    try {
+      if (parsed.platform === 'gitlab') {
+        fromBranch = parsed.mrNumber;
+        toBranch = 'main';
+        const projectId = await getProjectIdByPath(platformToken, parsed.apiUrl, parsed.projectPath);
+        const mrInfo = await getMRInfo(platformToken, parsed.apiUrl, projectId, parsed.mrNumber);
+        const mrDiff = await getMRDiff(platformToken, parsed.apiUrl, projectId, parsed.mrNumber);
+
+        diff = mrDiff
+          .map((f: any) => `--- ${f.old_path}\n+++ ${f.new_path}\n${f.diff}`)
+          .join('\n\n');
+
+        fromBranch = mrInfo.source_branch;
+        toBranch = mrInfo.target_branch;
+      } else {
+        fromBranch = parsed.prNumber;
+        toBranch = 'main';
+        const prInfo = await getPRInfo(platformToken, parsed.owner, parsed.repo, parsed.prNumber);
+        const prFiles = await getPRFiles(platformToken, parsed.owner, parsed.repo, parsed.prNumber);
+
+        diff = prFiles
+          .filter((f: any) => f.patch)
+          .map((f: any) => `--- ${f.filename}\n+++ ${f.filename}\n${f.patch}`)
+          .join('\n\n');
+
+        fromBranch = prInfo.head.ref;
+        toBranch = prInfo.base.ref;
+      }
+    } catch (err: any) {
+      const status = err.response?.status;
+      const target = parsed.platform === 'gitlab' ? 'MR' : 'PR';
+
+      if (status === 404) {
+        console.error(`\n${c.red('Error:')} ${target} not found. ${c.cyan('Check the URL and ensure you have access to the repository.')}`);
+      } else if (status === 401 || status === 403) {
+        console.error(`\n${c.red('Error:')} Authentication failed (HTTP ${c.yellow(String(status))}). ${c.cyan('Verify your token is valid and has access to this repository.')}`);
+      } else {
+        console.error(`\n${c.red('Error:')} Failed to fetch ${target} details${status ? ` (HTTP ${c.yellow(String(status))})` : ''}.`);
+        if (err.message) console.error(`  ${c.cyan('Detail:')} ${err.message}`);
+      }
+      process.exit(1);
+    }
+
+    if (!diff) {
+      console.log('No changes found in this MR/PR. Cannot generate description.');
+      process.exit(0);
+    }
+  } else {
+    // Local branch flow
+    fromBranch = opts.from!;
+    toBranch = opts.to!;
+
+    const errors: string[] = [];
+    try {
+      execSync(`git rev-parse --verify ${fromBranch}`, { encoding: 'utf-8', stdio: 'pipe' });
+    } catch {
+      errors.push(`Source branch "${fromBranch}" not found.`);
+    }
+    try {
+      execSync(`git rev-parse --verify ${toBranch}`, { encoding: 'utf-8', stdio: 'pipe' });
+    } catch {
+      errors.push(`Target branch "${toBranch}" not found.`);
+    }
+    if (errors.length) {
+      for (const err of errors) console.error(err);
+      process.exit(1);
+    }
+
+    try {
+      diff = execSync(`git diff ${toBranch}...${fromBranch}`, { encoding: 'utf-8' }).trim();
+    } catch {
+      try {
+        diff = execSync(`git diff ${toBranch}..${fromBranch}`, { encoding: 'utf-8' }).trim();
+      } catch {
+        console.error(`Failed to diff "${fromBranch}" vs "${toBranch}".`);
+        process.exit(1);
+      }
+    }
+
+    if (!diff) {
+      console.log(`No diff between "${fromBranch}" and "${toBranch}".`);
+      process.exit(0);
+    }
   }
 
   const providerKey = config.aiProvider || 'openai';
   const providerCfg = config.providers[providerKey];
   const envKey = providerCfg?.apiKey?.replace(/^env:/, '') || 'AI_API_KEY';
-
-  loadEnvFile();
 
   let apiKey = process.env[envKey];
   if (!apiKey) {
@@ -150,7 +255,52 @@ export async function diffAction(opts: { from?: string; to?: string }): Promise<
 
   console.log(colorizeOutput(finalDesc));
 
+  const isUrlMode = !!opts.url;
   const { confirm, password, isCancel, spinner } = await import('@clack/prompts');
+  
+  if (isUrlMode) {
+    // URL mode: Update existing MR/PR
+    const targetType = config.platform === 'gitlab' ? 'MR' : 'PR';
+    const targetUrl = opts.url!;
+    const updateConfirm = await confirm({
+      message: `Update description for this ${targetType}?`,
+      initialValue: false,
+    });
+    if (!updateConfirm || isCancel(updateConfirm)) return;
+
+    const tokenEnvKey = config.platform === 'gitlab' ? 'GITLAB_TOKEN' : 'GITHUB_TOKEN';
+    let platformToken = process.env[tokenEnvKey];
+    if (!platformToken) {
+      console.log(`Set ${tokenEnvKey} in .env to skip this prompt.`);
+      const result = await password({ message: `Enter ${tokenEnvKey}:` });
+      if (isCancel(result)) return;
+      platformToken = result as string;
+    }
+
+    const s = spinner();
+    try {
+      const parsed = parseMrPrUrl(opts.url!);
+      if (parsed.platform === 'gitlab') {
+        const projectId = await getProjectIdByPath(platformToken, parsed.apiUrl, parsed.projectPath);
+        s.start('Updating MR description...');
+        await updateMRDescription(platformToken, parsed.apiUrl, projectId, parsed.mrNumber, finalDesc);
+        s.stop(`✅ ${c.bold(c.green('MR description updated'))}: ${c.cyan(targetUrl)}`);
+      } else {
+        s.start('Updating PR description...');
+        await updatePRDescription(platformToken, parsed.owner, parsed.repo, parsed.prNumber, finalDesc);
+        s.stop(`✅ ${c.bold(c.green('PR description updated'))}: ${c.cyan(targetUrl)}`);
+      }
+    } catch (err: any) {
+      s.stop('❌ Failed');
+      const status = err.response?.status;
+      const respData = err.response?.data;
+      console.error(`\n${c.red('Failed to update description')}${status ? ` (HTTP ${c.yellow(String(status))})` : ''}: ${c.cyan(err.message)}`);
+      if (respData?.message) console.error(`  ${c.red('API:')} ${respData.message}`);
+    }
+    return;
+  }
+
+  // Local branch mode: Create new MR/PR (existing logic)
   const createDraft = await confirm({
     message: `Create Draft ${type === 'mr' ? 'MR' : 'PR'} from ${fromBranch} to ${toBranch}?`,
     initialValue: false,
