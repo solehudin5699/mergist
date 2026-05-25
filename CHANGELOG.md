@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.0](https://github.com/solehudin5699/mergist/compare/v1.3.0...v1.4.0) (2026-05-25)
+
+### Features
+
+* add provider anthropic ([dfb4da7](https://github.com/solehudin5699/mergist/commit/dfb4da7819003bb9a402fd6a4c522733386c7c3a))
+* **diff:** add generate description form remote url MR/PR ([9149f70](https://github.com/solehudin5699/mergist/commit/9149f7059d771f6bfa9a24ffc048beaeca7b320a))
+* **diff:** fix generate description form remote url MR/PR ([07e987d](https://github.com/solehudin5699/mergist/commit/07e987dcc25170ecb18e18be3c9689a067b13a7b))
+
 ## [1.3.0](https://github.com/solehudin5699/mergist/compare/v1.2.0...v1.3.0) (2026-05-19)
 
 ### Features
