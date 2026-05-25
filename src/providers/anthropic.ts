@@ -22,7 +22,7 @@ export class AnthropicProvider implements AIProviderInterface {
   private model: string;
   private maxTokens: number;
 
-  constructor(apiKey: string, model: string = 'claude-3-5-sonnet-20241022', maxTokens: number = MAX_TOKENS) {
+  constructor(apiKey: string, model: string = 'claude-sonnet-4-6', maxTokens: number = MAX_TOKENS) {
     this.apiKey = apiKey;
     this.model = model;
     this.maxTokens = maxTokens;
