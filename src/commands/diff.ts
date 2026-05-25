@@ -2,14 +2,19 @@ import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 import { execSync } from 'child_process';
 import { loadConfig, getConfigPath } from '../config.js';
-import { buildTemplate, splitSections, wrapInMarkers } from '../templates/default.js';
+import { buildTemplate } from '../templates/default.js';
 import { OpenAIProvider } from '../providers/openai.js';
+import { AnthropicProvider } from '../providers/anthropic.js';
 import { PROVIDER_PRESETS } from '../types.js';
+import type { Config } from '../types.js';
 import { buildUserPrompt, buildSystemMessage } from '../prompts.js';
+import type { PromptType } from '../prompts.js';
 import { c, AI_SECTIONS, HUMAN_SECTIONS, ALL_SECTIONS } from '../constants.js';
 import { startBreathing } from '../banner.js';
-import { createMR, getProjectId, getGitLabApiUrl } from '../api/gitlab.js';
-import { createPR, parseGitHubRemote } from '../api/github.js';
+import { createMR, getProjectId, getProjectIdByPath, getGitLabApiUrl, getMRInfo, getMRDiff, updateMRDescription } from '../api/gitlab.js';
+import { createPR, parseGitHubRemote, getPRInfo, getPRFiles, updatePRDescription } from '../api/github.js';
+import { ParsedMrPr } from '../utils/url-parser.js';
+import { validateArgs, parseUrl, formatGitLabDiff, formatGitHubDiff, buildSections, titleFromBranch } from '../utils/diff-helpers.js';
 
 function loadEnvFile(path = '.env') {
   try {
@@ -40,128 +45,197 @@ function colorizeOutput(output: string): string {
   return clean;
 }
 
-export async function diffAction(opts: { from?: string; to?: string }): Promise<void> {
-  if (!existsSync(getConfigPath())) {
-    console.error('No configuration found. Run `mergist init` first.');
-    process.exit(1);
+async function getPlatformToken(config: Config): Promise<string | null> {
+  const envKey = config.platform === 'gitlab' ? 'GITLAB_TOKEN' : 'GITHUB_TOKEN';
+  let token = process.env[envKey];
+  if (!token) {
+    console.log(`Set ${envKey} in .env to skip this prompt.`);
+    const { password, isCancel } = await import('@clack/prompts');
+    const result = await password({ message: `Enter ${envKey}:` });
+    if (isCancel(result)) return null;
+    token = result as string;
+    process.env[envKey] = token;
   }
+  return token;
+}
 
-  const config = loadConfig();
-
-  const fromBranch = opts.from!;
-  const toBranch = opts.to!;
-
-  const errors: string[] = [];
-  try {
-    execSync(`git rev-parse --verify ${fromBranch}`, { encoding: 'utf-8', stdio: 'pipe' });
-  } catch {
-    errors.push(`Source branch "${fromBranch}" not found.`);
-  }
-  try {
-    execSync(`git rev-parse --verify ${toBranch}`, { encoding: 'utf-8', stdio: 'pipe' });
-  } catch {
-    errors.push(`Target branch "${toBranch}" not found.`);
-  }
-  if (errors.length) {
-    for (const err of errors) console.error(err);
-    process.exit(1);
-  }
-
-  let diff: string;
-  try {
-    diff = execSync(`git diff ${toBranch}...${fromBranch}`, { encoding: 'utf-8' }).trim();
-  } catch {
-    try {
-      diff = execSync(`git diff ${toBranch}..${fromBranch}`, { encoding: 'utf-8' }).trim();
-    } catch {
-      console.error(`Failed to diff "${fromBranch}" vs "${toBranch}".`);
-      process.exit(1);
-    }
-  }
-
-  if (!diff) {
-    console.log(`No diff between "${fromBranch}" and "${toBranch}".`);
-    process.exit(0);
-  }
-
+async function getAiApiKey(config: Config): Promise<string | null> {
   const providerKey = config.aiProvider || 'openai';
   const providerCfg = config.providers[providerKey];
   const envKey = providerCfg?.apiKey?.replace(/^env:/, '') || 'AI_API_KEY';
-
-  loadEnvFile();
-
-  let apiKey = process.env[envKey];
-  if (!apiKey) {
-    console.log('Set AI_API_KEY in .env to skip this prompt next time.');
+  let key = process.env[envKey];
+  if (!key) {
+    console.log(`Set ${envKey} in .env to skip this prompt next time.`);
     const { password, isCancel } = await import('@clack/prompts');
     const result = await password({ message: `Enter ${envKey}:` });
-    if (isCancel(result)) process.exit(0);
-    apiKey = result as string;
+    if (isCancel(result)) return null;
+    key = result as string;
   }
+  return key;
+}
 
-  const model = providerCfg?.model || 'gpt-4o';
+function initProvider(apiKey: string, config: Config): OpenAIProvider | AnthropicProvider {
+  const providerKey = config.aiProvider || 'openai';
+  const providerCfg = config.providers[providerKey];
+  const model = providerCfg?.model || PROVIDER_PRESETS[providerKey]?.defaultModel || 'gpt-4o';
   const baseUrl = providerCfg?.baseUrl || PROVIDER_PRESETS[providerKey]?.baseUrl || 'https://api.openai.com/v1';
-  const provider = new OpenAIProvider(apiKey, model, baseUrl, config.maxTokens);
 
-  const sections = config.templates || ALL_SECTIONS;
-  const type = config.platform === 'gitlab' ? 'mr' : 'pr';
-  const template = buildTemplate(type, sections, config.lang);
-  const aiSections = sections.filter(s => AI_SECTIONS.includes(s));
-  const humanSections = sections.filter(s => HUMAN_SECTIONS.includes(s));
-  const prompt = buildUserPrompt(type, fromBranch, template, config.lang, aiSections, humanSections);
-  const systemMessage = buildSystemMessage(type, config.lang);
+  return providerKey === 'anthropic'
+    ? new AnthropicProvider(apiKey, model, config.maxTokens)
+    : new OpenAIProvider(apiKey, model, baseUrl, config.maxTokens);
+}
 
-  let description: string;
-  const anim = startBreathing('Generating...');
+async function fetchUrlDiff(
+  parsed: ParsedMrPr,
+  token: string,
+): Promise<{ diff: string; fromBranch: string; toBranch: string }> {
   try {
-    description = await provider.generate(prompt, diff.slice(0, config.maxDiffChars || 8000), systemMessage);
-    anim.stop('Done');
-    console.log('');
-  } catch (err: any) {
-    anim.stop('Failed');
-    const status = err.response?.status;
-    const apiErr = err.response?.data?.error;
-    console.error(`${c.red('AI request failed')}${status ? ` (${status})` : ''}`);
-    if (apiErr?.message) console.error(`  ${c.cyan('API:')} ${apiErr.message}`);
-    process.exit(0);
-  }
-  if (!description.trim()) {
-    anim.stop('Failed');
-    console.error(`${c.red('AI returned empty response.')} ${c.cyan('Try again or check your AI provider.')}`);
-    process.exit(0);
-  }
-  const wrapped = wrapInMarkers(description, sections);
+    if (parsed.platform === 'gitlab') {
+      const projectId = await getProjectIdByPath(token, parsed.apiUrl, parsed.projectPath);
+      const [mrInfo, mrDiff] = await Promise.all([
+        getMRInfo(token, parsed.apiUrl, projectId, parsed.mrNumber),
+        getMRDiff(token, parsed.apiUrl, projectId, parsed.mrNumber),
+      ]);
 
-  const parsedSections = splitSections(wrapped);
-  const humanTmpl = buildTemplate(type, HUMAN_SECTIONS, config.lang);
-  const humanTmplSections = splitSections(humanTmpl);
-  for (const s of HUMAN_SECTIONS) {
-    if (!parsedSections[s] || parsedSections[s] === '-') {
-      parsedSections[s] = humanTmplSections[s];
+      return {
+        diff: formatGitLabDiff(mrDiff),
+        fromBranch: mrInfo.source_branch,
+        toBranch: mrInfo.target_branch,
+      };
+    } else {
+      const [prInfo, prFiles] = await Promise.all([
+        getPRInfo(token, parsed.owner, parsed.repo, parsed.prNumber),
+        getPRFiles(token, parsed.owner, parsed.repo, parsed.prNumber),
+      ]);
+
+      return {
+        diff: formatGitHubDiff(prFiles),
+        fromBranch: prInfo.head.ref,
+        toBranch: prInfo.base.ref,
+      };
+    }
+  } catch (err: any) {
+    const status = err.response?.status;
+    const target = parsed.platform === 'gitlab' ? 'MR' : 'PR';
+
+    if (status === 404) {
+      throw new Error(`${target} not found. ${c.cyan('Check the URL and ensure you have access to the repository.')}`);
+    }
+    if (status === 401 || status === 403) {
+      throw new Error(`Authentication failed (HTTP ${c.yellow(String(status))}). ${c.cyan('Verify your token is valid and has access to this repository.')}`);
+    }
+    throw new Error(`Failed to fetch ${target} details${status ? ` (HTTP ${c.yellow(String(status))})` : ''}.${err.message ? `\n  ${c.cyan('Detail:')} ${err.message}` : ''}`);
+  }
+}
+
+function fetchLocalDiff(from: string, to: string): string {
+  const errors: string[] = [];
+  for (const [branch, label] of [[from, 'Source'], [to, 'Target']] as const) {
+    try {
+      execSync(`git rev-parse --verify ${branch}`, { encoding: 'utf-8', stdio: 'pipe' });
+    } catch {
+      errors.push(`${label} branch "${branch}" not found.`);
     }
   }
+  if (errors.length) {
+    throw new Error(errors.join('\n'));
+  }
 
-  const finalDesc = sections.map(s =>
-    `<!-- SECTION:${s} -->\n${parsedSections[s]}\n<!-- ENDSECTION:${s} -->`
-  ).join('\n\n');
+  try {
+    return execSync(`git diff ${to}...${from}`, { encoding: 'utf-8' }).trim();
+  } catch {
+    try {
+      return execSync(`git diff ${to}..${from}`, { encoding: 'utf-8' }).trim();
+    } catch {
+      throw new Error(`Failed to diff "${from}" vs "${to}".`);
+    }
+  }
+}
 
-  console.log(colorizeOutput(finalDesc));
+async function generateWithSpinner(
+  provider: OpenAIProvider | AnthropicProvider,
+  prompt: string,
+  diff: string,
+  maxDiffChars: number,
+  systemMessage: string,
+): Promise<string> {
+  const anim = startBreathing('Generating...');
+  try {
+    const description = await provider.generate(prompt, diff.slice(0, maxDiffChars || 8000), systemMessage);
+    anim.stop('Done');
+    console.log('');
+    if (!description.trim()) {
+      anim.stop('Failed');
+      throw new Error('AI returned empty response. Try again or check your AI provider.');
+    }
+    return description;
+  } catch (err: any) {
+    anim.stop('Failed');
+    if (err.message?.startsWith('AI returned empty')) throw err;
+    const status = err.response?.status;
+    const apiErr = err.response?.data?.error;
+    let msg = `AI request failed${status ? ` (${c.yellow(String(status))})` : ''}`;
+    if (apiErr?.message) msg += `\n  ${c.cyan('API:')} ${apiErr.message}`;
+    throw new Error(msg);
+  }
+}
 
-  const { confirm, password, isCancel, spinner } = await import('@clack/prompts');
-  const createDraft = await confirm({
+async function handleUrlUpdate(
+  parsed: ParsedMrPr,
+  url: string,
+  finalDesc: string,
+  config: Config,
+): Promise<void> {
+  const targetType = config.platform === 'gitlab' ? 'MR' : 'PR';
+  const { confirm, isCancel, spinner } = await import('@clack/prompts');
+
+  const shouldUpdate = await confirm({
+    message: `Update description for this ${targetType}?`,
+    initialValue: true,
+  });
+  if (!shouldUpdate || isCancel(shouldUpdate)) return;
+
+  const token = await getPlatformToken(config);
+  if (!token) return;
+
+  const s = spinner();
+  try {
+    if (parsed.platform === 'gitlab') {
+      const projectId = await getProjectIdByPath(token, parsed.apiUrl, parsed.projectPath);
+      s.start('Updating MR description...');
+      await updateMRDescription(token, parsed.apiUrl, projectId, parsed.mrNumber, finalDesc);
+      s.stop(`✅ ${c.bold(c.green('MR description updated'))}: ${c.cyan(url)}`);
+    } else {
+      s.start('Updating PR description...');
+      await updatePRDescription(token, parsed.owner, parsed.repo, parsed.prNumber, finalDesc);
+      s.stop(`✅ ${c.bold(c.green('PR description updated'))}: ${c.cyan(url)}`);
+    }
+  } catch (err: any) {
+    s.stop('❌ Failed');
+    const status = err.response?.status;
+    const respData = err.response?.data;
+    console.error(`\n${c.red('Failed to update description')}${status ? ` (HTTP ${c.yellow(String(status))})` : ''}: ${c.cyan(err.message)}`);
+    if (respData?.message) console.error(`  ${c.red('API:')} ${respData.message}`);
+  }
+}
+
+async function handleCreateDraft(
+  fromBranch: string,
+  toBranch: string,
+  finalDesc: string,
+  config: Config,
+): Promise<void> {
+  const { confirm, isCancel, spinner } = await import('@clack/prompts');
+  const type = config.platform === 'gitlab' ? 'mr' : 'pr';
+
+  const shouldCreate = await confirm({
     message: `Create Draft ${type === 'mr' ? 'MR' : 'PR'} from ${fromBranch} to ${toBranch}?`,
     initialValue: false,
   });
-  if (!createDraft || isCancel(createDraft)) return;
+  if (!shouldCreate || isCancel(shouldCreate)) return;
 
-  const tokenEnvKey = config.platform === 'gitlab' ? 'GITLAB_TOKEN' : 'GITHUB_TOKEN';
-  let platformToken = process.env[tokenEnvKey];
-  if (!platformToken) {
-    console.log(`Set ${tokenEnvKey} in .env to skip this prompt.`);
-    const result = await password({ message: `Enter ${tokenEnvKey}:` });
-    if (isCancel(result)) return;
-    platformToken = result as string;
-  }
+  const token = await getPlatformToken(config);
+  if (!token) return;
 
   const s = spinner();
   try {
@@ -170,16 +244,16 @@ export async function diffAction(opts: { from?: string; to?: string }): Promise<
 
     if (config.platform === 'gitlab') {
       const apiUrl = getGitLabApiUrl(remoteUrl);
-      const projectId = await getProjectId(platformToken, apiUrl, remoteUrl);
+      const projectId = await getProjectId(token, apiUrl, remoteUrl);
       console.log(`  Remote: ${remoteUrl}`);
       s.start('Creating draft MR...');
-      const mr = await createMR(platformToken, apiUrl, projectId, fromBranch, toBranch, title, finalDesc);
+      const mr = await createMR(token, apiUrl, projectId, fromBranch, toBranch, title, finalDesc);
       s.stop(`✅ ${c.bold(c.green('Draft MR created'))}: ${c.cyan(mr.web_url)}`);
     } else {
       const { owner, repo } = parseGitHubRemote(remoteUrl);
       console.log(`  Remote: ${remoteUrl}`);
       s.start('Creating draft PR...');
-      const pr = await createPR(platformToken, owner, repo, fromBranch, toBranch, title, finalDesc);
+      const pr = await createPR(token, owner, repo, fromBranch, toBranch, title, finalDesc);
       s.stop(`✅ ${c.bold(c.green('Draft PR created'))}: ${c.cyan(pr.html_url)}`);
     }
   } catch (err: any) {
@@ -197,7 +271,6 @@ export async function diffAction(opts: { from?: string; to?: string }): Promise<
     const apiErrors = respData?.errors;
     console.error(`\n${c.red('Failed to create draft')}${status ? ` (HTTP ${c.yellow(String(status))})` : ''}: ${c.cyan(err.message)}`);
     if (apiErrors?.length) {
-      // GitHub-specific: API returns errors array with field-level validation details
       const firstMsg = apiErrors[0]?.message || '';
       if (firstMsg.includes('not all refs are readable')) {
         console.error(`  ${c.red('•')} ${firstMsg}`);
@@ -217,10 +290,87 @@ export async function diffAction(opts: { from?: string; to?: string }): Promise<
   }
 }
 
-function titleFromBranch(branch: string): string {
-  const parts = branch.split('/');
-  const name = parts.length < 2 ? branch : parts.slice(1).join('/');
-  return name.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).trim();
+export async function diffAction(opts: { from?: string; to?: string; url?: string }): Promise<void> {
+  if (!existsSync(getConfigPath())) {
+    console.error('No configuration found. Run `mergist init` first.');
+    process.exit(1);
+  }
+
+  const config = loadConfig();
+  loadEnvFile();
+
+  try {
+    validateArgs(opts);
+  } catch (err: any) {
+    console.error(`${c.red('Error:')} ${err.message}`);
+    process.exit(1);
+  }
+
+  let diff: string;
+  let fromBranch: string;
+  let toBranch: string;
+  let parsed: ParsedMrPr | undefined;
+
+  if (opts.url) {
+    parsed = parseUrl(opts.url, config);
+
+    const token = await getPlatformToken(config);
+    if (!token) process.exit(0);
+
+    try {
+      ({ diff, fromBranch, toBranch } = await fetchUrlDiff(parsed, token));
+    } catch (err: any) {
+      console.error(`\n${c.red('Error:')} ${err.message}`);
+      process.exit(1);
+    }
+  } else {
+    fromBranch = opts.from!;
+    toBranch = opts.to!;
+
+    try {
+      diff = fetchLocalDiff(fromBranch, toBranch);
+    } catch (err: any) {
+      console.error(`${c.red('Error:')} ${err.message}`);
+      process.exit(1);
+    }
+  }
+
+  if (!diff) {
+    const msg = opts.url
+      ? 'No changes found in this MR/PR. Cannot generate description.'
+      : `No diff between "${fromBranch}" and "${toBranch}".`;
+    console.log(msg);
+    process.exit(0);
+  }
+
+  const apiKey = await getAiApiKey(config);
+  if (!apiKey) process.exit(0);
+
+  const provider = initProvider(apiKey, config);
+  const type: PromptType = config.platform === 'gitlab' ? 'mr' : 'pr';
+  const sections = config.templates || ALL_SECTIONS;
+  const template = buildTemplate(type, sections, config.lang);
+  const aiSections = sections.filter(s => AI_SECTIONS.includes(s));
+  const humanSections = sections.filter(s => HUMAN_SECTIONS.includes(s));
+  const prompt = buildUserPrompt(type, fromBranch, template, config.lang, aiSections, humanSections);
+  const systemMessage = buildSystemMessage(type, config.lang);
+
+  let description: string;
+  try {
+    description = await generateWithSpinner(provider, prompt, diff, config.maxDiffChars, systemMessage);
+  } catch (err: any) {
+    console.error(`${c.red(err.message)}`);
+    process.exit(0);
+  }
+
+  const finalDesc = buildSections(description, sections, type, config.lang);
+  console.log(colorizeOutput(finalDesc));
+
+  if (opts.url) {
+    await handleUrlUpdate(parsed!, opts.url, finalDesc, config);
+  } else {
+    await handleCreateDraft(fromBranch, toBranch, finalDesc, config);
+  }
 }
 
 function getPlatformRemote(platform: 'gitlab' | 'github'): string {

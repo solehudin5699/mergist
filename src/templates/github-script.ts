@@ -13,7 +13,7 @@ export function generateGitHubScript(config: Config, lang: Language): string {
   const providerKey = config.aiProvider || 'openai';
   const providerCfg = config.providers[providerKey] || { apiKey: 'env:AI_API_KEY', baseUrl: '', model: '' };
   const envVarName = providerCfg.apiKey?.replace(/^env:/, '') || 'AI_API_KEY';
-  const model = providerCfg.model || 'gpt-4o';
+  const model = providerCfg.model || PROVIDER_PRESETS[providerKey]?.defaultModel || 'gpt-4o';
   const baseUrl = providerCfg.baseUrl || PROVIDER_PRESETS[providerKey]?.baseUrl || 'https://api.openai.com/v1';
 
   return `/**
@@ -35,6 +35,7 @@ const HUMAN_SECTIONS = ${JSON.stringify(HUMAN_SECTIONS)};
 const AUTO_UPDATE = ${config.autoUpdate};
 
 const BASE_URL = '${baseUrl}';
+const PROVIDER = '${providerKey}';
 
 const TEMPLATE = \`${template.replace(/`/g, '\\`')}\`;
 
@@ -177,16 +178,33 @@ async function updatePRDescription(desc) {
 }
 
 async function callAI(prompt, diff) {
-  const res = await httpRequest(BASE_URL + '/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': \`Bearer \${AI_API_KEY}\` }
-  }, { model: MODEL, max_tokens: ${config.maxTokens || MAX_TOKENS}, messages: [{ role: 'system', content: SYSTEM_MESSAGE }, { role: 'user', content: prompt + '\\n\\nGIT DIFF:\\n' + diff.slice(0, MAX_DIFF_CHARS) }] });
-  if (res.status !== 200) {
-    const err = new Error(\`AI error (HTTP \${res.status})\`);
-    err.status = res.status;
-    throw err;
+  if (PROVIDER === 'anthropic') {
+    const res = await httpRequest('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': AI_API_KEY,
+        'anthropic-version': '2023-06-01'
+      }
+    }, { model: MODEL, max_tokens: ${config.maxTokens || MAX_TOKENS}, system: SYSTEM_MESSAGE, messages: [{ role: 'user', content: prompt + '\\n\\nGIT DIFF:\\n' + diff.slice(0, MAX_DIFF_CHARS) }] });
+    if (res.status !== 200) {
+      const err = new Error(\`AI error (HTTP \${res.status})\`);
+      err.status = res.status;
+      throw err;
+    }
+    return res.body.content[0]?.text?.trim() || '';
+  } else {
+    const res = await httpRequest(BASE_URL + '/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': \`Bearer \${AI_API_KEY}\` }
+    }, { model: MODEL, max_tokens: ${config.maxTokens || MAX_TOKENS}, messages: [{ role: 'system', content: SYSTEM_MESSAGE }, { role: 'user', content: prompt + '\\n\\nGIT DIFF:\\n' + diff.slice(0, MAX_DIFF_CHARS) }] });
+    if (res.status !== 200) {
+      const err = new Error(\`AI error (HTTP \${res.status})\`);
+      err.status = res.status;
+      throw err;
+    }
+    return res.body.choices[0]?.message?.content?.trim() || '';
   }
-  return res.body.choices[0]?.message?.content?.trim() || '';
 }
 
 async function main() {

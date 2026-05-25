@@ -25,9 +25,10 @@ program.addCommand(configCommands);
 
 program
   .command('diff')
-  .description('Preview description from local git diff')
-  .requiredOption('-f, --from <branch>', 'Source branch')
-  .requiredOption('-t, --to <branch>', 'Target branch')
+  .description('Preview description from local git diff or MR/PR URL')
+.option('-f, --from <branch>', 'Local source branch (required without --url)')
+.option('-t, --to <branch>', 'Local target branch (required without --url)')
+  .option('-u, --url <url>', 'MR/PR URL (required without -f/-t)')
   .action(diffAction);
 
 program.parse();

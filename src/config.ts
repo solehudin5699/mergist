@@ -14,7 +14,7 @@ const providerConfigSchema = z.object({
 
 const configSchema = z.object({
   platform: z.enum(['gitlab', 'github']).default('gitlab'),
-  aiProvider: z.enum(['openai', 'deepseek', 'groq', 'custom']).default('openai'),
+  aiProvider: z.enum(['openai', 'deepseek', 'groq', 'anthropic', 'custom']).default('openai'),
   lang: z.enum(['id', 'en']).default('id'),
   maxDiffChars: z.number().default(8000),
   maxTokens: z.number().int().positive().default(MAX_TOKENS),

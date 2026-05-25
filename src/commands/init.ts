@@ -126,6 +126,7 @@ export async function initAction(): Promise<void> {
         { value: 'openai', label: 'OpenAI' },
         { value: 'deepseek', label: 'DeepSeek' },
         { value: 'groq', label: 'Groq' },
+        { value: 'anthropic', label: 'Anthropic' },
         { value: 'custom', label: 'Custom (OpenAI-compatible)' },
       ],
       initialValue: aiProvider,
