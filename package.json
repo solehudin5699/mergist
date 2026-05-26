@@ -8,11 +8,12 @@
   },
   "files": [
     "dist/cli.js",
+    "dist/ui/index.html",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
-    "build": "esbuild src/cli.ts --bundle --platform=node --format=esm --outfile=dist/cli.js --minify --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\"",
+    "build": "esbuild src/cli.ts --bundle --platform=node --format=esm --outfile=dist/cli.js --minify --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\" && mkdir -p dist/ui && cp src/ui/index.html dist/ui/index.html",
     "dev": "tsx src/index.ts",
     "start": "node dist/cli.js",
     "prepublishOnly": "npm run build",

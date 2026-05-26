@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>mergist UI</title>
+<style>
+:root {
+  --primary: #0284c7;
+  --primary-hover: #0369a1;
+  --secondary: #06b6d4;
+  --success: #059669;
+  --error: #dc2626;
+  --header-from: #0f172a;
+  --header-to: #1e293b;
+  --surface: #ffffff;
+  --surface-low: #f8fafc;
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --text-light: #94a3b8;
+  --radius: 8px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.1);
+  font-family: system-ui, -apple-system, sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--surface-low); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+input, textarea, select { font-family: 'Courier New', monospace; font-size: 14px; }
+button { font-family: system-ui, -apple-system, sans-serif; cursor: pointer; }
+a { color: var(--primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+header {
+  background: linear-gradient(135deg, var(--header-from), var(--header-to));
+  position: fixed; top: 0; width: 100%; z-index: 50; height: 60px;
+  display: flex; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+header > div {
+  max-width: 960px; width: 100%; margin: 0 auto; padding: 0 16px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.logo { display: flex; align-items: center; gap: 8px; }
+.logo .m { color: var(--secondary); font-size: 22px; font-weight: 800; }
+.logo .rest { color: #fff; font-size: 20px; font-weight: 700; }
+.config-bar { display: flex; gap: 16px; color: rgba(255,255,255,0.5); font-size: 12px; }
+.config-bar span { display: flex; align-items: center; gap: 4px; }
+
+main { margin-top: 76px; margin-bottom: 100px; flex: 1; max-width: 960px; width: 100%; margin-left: auto; margin-right: auto; padding: 0 16px; }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow); }
+
+.mode-toggle { display: flex; gap: 4px; background: var(--surface-low); padding: 4px; border-radius: var(--radius); width: fit-content; }
+.mode-toggle label { padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; color: var(--text-muted); transition: all 0.2s; }
+.mode-toggle input { display: none; }
+.mode-toggle input:checked + span { background: var(--surface); box-shadow: var(--shadow); color: var(--text); font-weight: 500; }
+
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; }
+.form-grid.single { grid-template-columns: 1fr; }
+
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-group label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 500; }
+.form-group input { padding: 12px 16px; border: 1px solid var(--border-strong); border-radius: var(--radius); font-size: 14px; transition: box-shadow 0.2s; background: var(--surface); }
+.form-group input:focus { outline: none; box-shadow: 0 0 0 2px var(--secondary); border-color: transparent; }
+.form-group .error { color: var(--error); font-size: 12px; display: none; }
+.form-group.invalid input { border-color: var(--error); }
+.form-group.invalid .error { display: block; }
+
+.btn {
+  padding: 10px 24px; border-radius: var(--radius); font-size: 14px; font-weight: 600;
+  display: inline-flex; align-items: center; gap: 8px; border: none; transition: all 0.2s;
+}
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
+.btn-green { background: var(--success); color: #fff; }
+.btn-green:hover:not(:disabled) { background: #047857; }
+.btn-outline { background: transparent; border: 1px solid var(--border-strong); color: var(--text); }
+.btn-outline:hover:not(:disabled) { background: var(--surface-low); }
+
+.generate-row { display: flex; justify-content: flex-end; margin-top: 20px; }
+
+.section-list { margin-top: 24px; display: flex; flex-direction: column; gap: 8px; }
+.section-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+.section-card .header {
+  display: flex; align-items: center; justify-content: space-between; padding: 16px 20px;
+  cursor: pointer; border-left: 3px solid transparent;
+  background: linear-gradient(to right, var(--secondary), var(--primary));
+  -webkit-background-clip: text;
+  background-clip: text;
+  transition: background 0.2s;
+}
+.section-card .header:hover { background: var(--surface-low); }
+.section-card .header .left { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 15px; }
+.section-card .header .chevron { transition: transform 0.2s; font-size: 12px; }
+.section-card .header .chevron.open { transform: rotate(180deg); }
+.section-card .body { padding: 0 20px 20px; }
+.section-card .body textarea {
+  width: 100%; min-height: 120px; padding: 12px; border: 1px solid var(--border);
+  border-radius: 6px; resize: vertical; font-size: 13px; line-height: 1.5; transition: box-shadow 0.2s;
+}
+.section-card .body textarea:focus { outline: none; box-shadow: 0 0 0 2px var(--secondary); border-color: transparent; }
+.section-card.collapsed .body { display: none; }
+
+.action-bar {
+  position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.95);
+  backdrop-filter: blur(8px); border-top: 1px solid var(--border); padding: 16px 0; z-index: 40;
+  display: none; transform: translateY(100%); transition: transform 0.3s;
+}
+.action-bar.show { display: block; transform: translateY(0); }
+.action-bar > div {
+  max-width: 960px; margin: 0 auto; padding: 0 16px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.action-bar .mode-badge {
+  font-size: 12px; padding: 4px 12px; border-radius: 999px; background: var(--surface-low);
+  border: 1px solid var(--border); display: flex; align-items: center; gap: 6px;
+}
+.action-bar .mode-badge .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); animation: pulse 2s infinite; }
+.action-bar .buttons { display: flex; gap: 8px; }
+
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+.toast {
+  position: fixed; top: 76px; right: 16px; z-index: 60;
+  display: flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: var(--radius);
+  color: #fff; font-size: 14px; font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  transform: translateX(120%); transition: transform 0.3s; border: 1px solid rgba(255,255,255,0.2);
+}
+.toast.show { transform: translateX(0); }
+.toast.success { background: var(--success); }
+.toast.error { background: var(--error); }
+
+.error-banner {
+  display: none; background: #fef2f2; border: 1px solid #fecaca; color: var(--error);
+  padding: 12px 16px; border-radius: var(--radius); font-size: 14px; margin-top: 16px;overflow: auto;
+}
+
+.loader {
+  display: none; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3);
+  border-top: 2px solid #fff; border-radius: 50%; animation: spin 1s linear infinite;
+}
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+.hidden { display: none !important; }
+
+@media (max-width: 640px) {
+  .form-grid { grid-template-columns: 1fr; }
+  .action-bar > div { flex-direction: column; gap: 12px; }
+  .action-bar .buttons { width: 100%; }
+  .action-bar .buttons .btn { flex: 1; justify-content: center; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <div class="logo">
+      <span class="m">m</span><span class="rest">ergist</span>
+    </div>
+    <div class="config-bar" id="config-bar">
+      <span id="config-platform">—</span>
+      <span id="config-lang">—</span>
+      <span id="config-provider">—</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- Input -->
+  <div class="card">
+    <div class="mode-toggle">
+      <label><input type="radio" name="mode" value="local" checked onchange="toggleMode('local')"><span>Local Branches</span></label>
+      <label><input type="radio" name="mode" value="url" onchange="toggleMode('url')"><span>URL</span></label>
+    </div>
+
+    <div id="mode-local">
+      <div class="form-grid">
+        <div class="form-group" id="fg-from">
+          <label>From Branch</label>
+          <input type="text" id="branch-from" list="branch-list" placeholder="feature/auth-flow" oninput="validateForm()">
+          <datalist id="branch-list"></datalist>
+          <span class="error">Required</span>
+        </div>
+        <div class="form-group" id="fg-to">
+          <label>To Branch</label>
+          <input type="text" id="branch-to" list="branch-list" placeholder="main" oninput="validateForm()">
+          <span class="error">Required</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="mode-url" class="hidden">
+      <div class="form-grid single">
+        <div class="form-group" id="fg-url">
+          <label>MR/PR URL</label>
+          <input type="text" id="pr-url" placeholder="https://github.com/org/repo/pull/123" oninput="validateForm()">
+          <span class="error">Enter a valid https URL</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="generate-row">
+      <button class="btn btn-primary" id="btn-generate" onclick="handleGenerate()" disabled>
+        <span id="gen-label">Generate</span>
+        <span id="gen-icon">→</span>
+        <span class="loader" id="gen-loader"></span>
+      </button>
+    </div>
+
+    <div class="error-banner" id="error-banner"></div>
+  </div>
+
+  <!-- Sections Preview -->
+  <div class="section-list hidden" id="section-list">
+    <div class="section-card" id="card-summary">
+      <div class="header" onclick="toggleCard('card-summary')"><div class="left"><span>📋</span> Summary</div><span class="chevron open">▼</span></div>
+      <div class="body"><textarea id="sec-summary" oninput="autoResize(this)"></textarea></div>
+    </div>
+    <div class="section-card" id="card-changes">
+      <div class="header" onclick="toggleCard('card-changes')"><div class="left"><span>📋</span> Changes</div><span class="chevron open">▼</span></div>
+      <div class="body"><textarea id="sec-changes" oninput="autoResize(this)"></textarea></div>
+    </div>
+    <div class="section-card" id="card-review">
+      <div class="header" onclick="toggleCard('card-review')"><div class="left"><span>📋</span> AI Review</div><span class="chevron open">▼</span></div>
+      <div class="body"><textarea id="sec-review" oninput="autoResize(this)"></textarea></div>
+    </div>
+    <div class="section-card" id="card-testing">
+      <div class="header" onclick="toggleCard('card-testing')"><div class="left"><span>📋</span> Testing</div><span class="chevron open">▼</span></div>
+      <div class="body"><textarea id="sec-testing" oninput="autoResize(this)"></textarea></div>
+    </div>
+    <div class="section-card" id="card-notes">
+      <div class="header" onclick="toggleCard('card-notes')"><div class="left"><span>📋</span> Notes</div><span class="chevron open">▼</span></div>
+      <div class="body"><textarea id="sec-notes" oninput="autoResize(this)"></textarea></div>
+    </div>
+    <div class="section-card" id="card-references">
+      <div class="header" onclick="toggleCard('card-references')"><div class="left"><span>📋</span> References</div><span class="chevron open">▼</span></div>
+      <div class="body"><textarea id="sec-references" oninput="autoResize(this)"></textarea></div>
+    </div>
+  </div>
+</main>
+
+<!-- Action bar -->
+<div class="action-bar" id="action-bar">
+  <div>
+    <div class="mode-badge"><span class="dot"></span><span id="action-mode-label">Local Branches</span></div>
+    <div class="buttons">
+      <button class="btn btn-green" id="btn-create" onclick="handleCreate()" disabled>
+        <span>Create Draft</span>
+      </button>
+      <button class="btn btn-primary" id="btn-update" onclick="handleUpdate()" disabled>
+        <span>Update MR/PR</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"><span id="toast-icon">✓</span><span id="toast-msg"></span></div>
+
+<script>
+let configData = null;
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await fetchConfig();
+  toggleMode('local');
+});
+
+async function fetchConfig() {
+  try {
+    const res = await fetch('/api/config');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    configData = await res.json();
+    document.getElementById('config-platform').textContent = configData.platform || '—';
+    document.getElementById('config-lang').textContent = configData.lang || '—';
+    document.getElementById('config-provider').textContent = configData.aiProvider || '—';
+
+    // Populate branch datalist
+    const list = document.getElementById('branch-list');
+    if (configData.branches && configData.branches.length) {
+      list.innerHTML = configData.branches.map(b => `<option value="${b}">`).join('');
+    }
+  } catch (e) {
+    document.getElementById('config-platform').textContent = '⚠ No config';
+    document.getElementById('config-lang').textContent = '—';
+    document.getElementById('config-provider').textContent = '—';
+    showToast('No configuration found. Run mergist init first.', 'error');
+  }
+}
+
+let currentMode = 'local';
+function toggleMode(mode) {
+  currentMode = mode;
+  document.getElementById('mode-local').classList.toggle('hidden', mode !== 'local');
+  document.getElementById('mode-url').classList.toggle('hidden', mode !== 'url');
+  document.getElementById('action-mode-label').textContent = mode === 'local' ? 'Local Branches' : 'URL';
+  showHideActionButtons();
+  hideError();
+}
+
+function validateForm() {
+  if (currentMode === 'local') {
+    const from = document.getElementById('branch-from').value.trim();
+    const to = document.getElementById('branch-to').value.trim();
+    document.getElementById('fg-from').classList.toggle('invalid', !from);
+    document.getElementById('fg-to').classList.toggle('invalid', !to);
+    document.getElementById('btn-generate').disabled = !from || !to;
+  } else {
+    const url = document.getElementById('pr-url').value.trim();
+    const valid = url.startsWith('https://');
+    document.getElementById('fg-url').classList.toggle('invalid', url.length > 0 && !valid);
+    document.getElementById('btn-generate').disabled = !url || !valid;
+  }
+}
+
+async function handleGenerate() {
+  const btn = document.getElementById('btn-generate');
+  const label = document.getElementById('gen-label');
+  const icon = document.getElementById('gen-icon');
+  const loader = document.getElementById('gen-loader');
+  const banner = document.getElementById('error-banner');
+  const list = document.getElementById('section-list');
+  const bar = document.getElementById('action-bar');
+
+  btn.disabled = true; label.textContent = 'Generating...'; icon.classList.add('hidden'); loader.style.display = 'inline-block';
+  hideError(); list.classList.add('hidden'); bar.classList.remove('show');
+
+  const body = currentMode === 'local'
+    ? { from: document.getElementById('branch-from').value.trim(), to: document.getElementById('branch-to').value.trim() }
+    : { url: document.getElementById('pr-url').value.trim() };
+
+  try {
+    const res = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await res.json();
+
+    if (!data.ok) {
+      showError(data.error);
+      btn.disabled = false; label.textContent = 'Generate'; icon.classList.remove('hidden'); loader.style.display = 'none';
+      return;
+    }
+
+    // Populate sections
+    const sections = data.sections || '';
+    const parsed = parseSections(sections);
+    const sectionIds = ['summary', 'changes', 'review', 'testing', 'notes', 'references'];
+    sectionIds.forEach(id => {
+      const ta = document.getElementById('sec-' + id);
+      if (ta) { ta.value = parsed[id] || ''; autoResize(ta); }
+    });
+
+    btn.disabled = false; label.textContent = 'Regenerate'; icon.classList.remove('hidden'); loader.style.display = 'none';
+    list.classList.remove('hidden');
+    bar.classList.add('show');
+    showHideActionButtons();
+    list.scrollIntoView({ behavior: 'smooth' });
+    showToast('Description generated!', 'success');
+  } catch (e) {
+    showError('Connection failed. Is the server running?');
+    btn.disabled = false; label.textContent = 'Generate'; icon.classList.remove('hidden'); loader.style.display = 'none';
+  }
+}
+
+function parseSections(str) {
+  const result = {};
+  const regex = /<!--\s*SECTION:(\w+)\s*-->([\s\S]*?)<!--\s*ENDSECTION:\1\s*-->/g;
+  let match;
+  while ((match = regex.exec(str)) !== null) {
+    result[match[1]] = match[2].trim();
+  }
+  return result;
+}
+
+function rebuildSections() {
+  const sectionIds = ['summary', 'changes', 'review', 'testing', 'notes', 'references'];
+  return sectionIds.map(id => {
+    const ta = document.getElementById('sec-' + id);
+    return '<!-- SECTION:' + id + ' -->\n' + (ta ? ta.value : '') + '\n<!-- ENDSECTION:' + id + ' -->';
+  }).join('\n\n');
+}
+
+function showHideActionButtons() {
+  const hasToken = configData && configData.hasToken;
+  const btnCreate = document.getElementById('btn-create');
+  const btnUpdate = document.getElementById('btn-update');
+  const hasSections = !document.getElementById('section-list').classList.contains('hidden');
+
+  btnCreate.disabled = !hasSections;
+  btnUpdate.disabled = !hasSections;
+
+  if (!hasToken) {
+    btnCreate.title = 'Set GITLAB_TOKEN or GITHUB_TOKEN in .env';
+    btnUpdate.title = 'Set GITLAB_TOKEN or GITHUB_TOKEN in .env';
+  } else {
+    btnCreate.title = '';
+    btnUpdate.title = '';
+  }
+
+  btnCreate.classList.toggle('hidden', currentMode !== 'local' || !hasToken);
+  btnUpdate.classList.toggle('hidden', currentMode !== 'url' || !hasToken);
+}
+
+async function handleCreate() {
+  const from = document.getElementById('branch-from').value.trim();
+  const to = document.getElementById('branch-to').value.trim();
+  if (!from || !to) return;
+  await performAction('create', { from, to, description: rebuildSections() });
+}
+
+async function handleUpdate() {
+  const url = document.getElementById('pr-url').value.trim();
+  if (!url) return;
+  await performAction('update', { url, description: rebuildSections() });
+}
+
+async function performAction(type, body) {
+  const btn = type === 'create' ? document.getElementById('btn-create') : document.getElementById('btn-update');
+  btn.disabled = true; const orig = btn.innerHTML; btn.innerHTML = 'Processing...';
+
+  try {
+    const res = await fetch('/api/' + type, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await res.json();
+    if (!data.ok) { showToast(data.error || 'Failed', 'error'); btn.innerHTML = orig; btn.disabled = false; return; }
+    showToast(data.url ? (type === 'create' ? 'Draft created' : 'Description updated') + ': ' + data.url : (type === 'create' ? 'Draft created!' : 'Description updated!'), 'success');
+  } catch (e) {
+    showToast('Connection failed', 'error');
+  }
+  btn.innerHTML = orig; btn.disabled = false;
+}
+
+function toggleCard(id) {
+  const card = document.getElementById(id);
+  card.classList.toggle('collapsed');
+  card.querySelector('.chevron').classList.toggle('open');
+}
+
+function autoResize(ta) { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }
+
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  document.getElementById('toast-msg').textContent = msg;
+  t.className = 'toast ' + type + ' show';
+  setTimeout(() => t.classList.remove('show'), 4000);
+}
+
+function showError(msg) {
+  const b = document.getElementById('error-banner');
+  b.textContent = msg; b.style.display = 'block';
+}
+
+function hideError() {
+  document.getElementById('error-banner').style.display = 'none';
+}
+</script>
+</body>
+</html>

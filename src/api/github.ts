@@ -71,7 +71,7 @@ export async function createPR(
   base: string,
   title: string,
   body: string,
-): Promise<{ html_url: string }> {
+): Promise<{ html_url: string; number: number }> {
   const response = await axios.post(
     `https://api.github.com/repos/${owner}/${repo}/pulls`,
     {

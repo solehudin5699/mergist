@@ -92,7 +92,7 @@ export async function createMR(
   targetBranch: string,
   title: string,
   description: string,
-): Promise<{ web_url: string }> {
+): Promise<{ web_url: string; iid: number }> {
   const response = await axios.post(
     `${apiUrl}/projects/${projectId}/merge_requests`,
     {
