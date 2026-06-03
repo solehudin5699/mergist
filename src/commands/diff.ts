@@ -78,7 +78,7 @@ async function getAiApiKey(config: Config): Promise<string | null> {
   return key;
 }
 
-function initProvider(apiKey: string, config: Config): OpenAIProvider | AnthropicProvider {
+export function initProvider(apiKey: string, config: Config): OpenAIProvider | AnthropicProvider {
   const providerKey = config.aiProvider || 'openai';
   const providerCfg = config.providers[providerKey];
   const model = providerCfg?.model || PROVIDER_PRESETS[providerKey]?.defaultModel || 'gpt-4o';
@@ -271,7 +271,7 @@ function getEnvToken(config: Config): string | null {
   return process.env[envKey] || null;
 }
 
-function getEnvAiApiKey(config: Config): string | null {
+export function getEnvAiApiKey(config: Config): string | null {
   const providerKey = config.aiProvider || 'openai';
   const providerCfg = config.providers[providerKey];
   const envKey = providerCfg?.apiKey?.replace(/^env:/, '') || 'AI_API_KEY';

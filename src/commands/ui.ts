@@ -4,12 +4,15 @@ import { execSync } from 'child_process';
 import { resolve, dirname, extname } from 'path';
 import { fileURLToPath } from 'url';
 import { loadConfig } from '../config.js';
-import { loadEnvFile, generateCore, getPlatformRemote } from './diff.js';
-import { titleFromBranch } from '../utils/diff-helpers.js';
+import { loadEnvFile, generateCore, getPlatformRemote, getEnvAiApiKey, initProvider } from './diff.js';
+import { titleFromBranch, buildSections } from '../utils/diff-helpers.js';
 import { getGitLabApiUrl, getProjectId, createMR, updateMRDescription } from '../api/gitlab.js';
 import { parseGitHubRemote, createPR, updatePRDescription } from '../api/github.js';
 import type { ParsedMrPr } from '../utils/url-parser.js';
-import { c } from '../constants.js';
+import { c, AI_SECTIONS, HUMAN_SECTIONS, ALL_SECTIONS } from '../constants.js';
+import { buildUserPrompt, buildSystemMessage } from '../prompts.js';
+import type { PromptType } from '../prompts.js';
+import { buildTemplate } from '../templates/default.js';
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -153,20 +156,24 @@ async function handleApiGenerate(req: IncomingMessage, res: ServerResponse): Pro
     const result = await generateCore({ from, to, url }, config);
 
     if (!result.ok) {
-      json(res, 400, { ok: false, error: result.cleanError || result.error });
+      json(res, 400, {
+        ok: false,
+        error: result.cleanError || result.error,
+        errorType: classifyErrorMsg(result.cleanError || result.error),
+      });
       return;
     }
 
     json(res, 200, {
       ok: true,
       description: result.description,
-      sections: result.sections,
+      sections: result.sections || result.description,
       diff: result.diff,
       fromBranch: result.fromBranch,
       toBranch: result.toBranch,
     });
   } catch (err: any) {
-    json(res, 500, { ok: false, error: err.message });
+    json(res, 500, { ok: false, error: err.message, errorType: 'connection' });
   }
 }
 
@@ -201,15 +208,17 @@ async function handleApiCreate(req: IncomingMessage, res: ServerResponse): Promi
 
     const remoteUrl = getPlatformRemote(config.platform);
     const title = titleFromBranch(from);
+    const sections = config.templates || ALL_SECTIONS;
+    const finalDesc = description.includes('<!-- SECTION:') ? description : buildSections(description, sections, config.platform === 'gitlab' ? 'mr' : 'pr', config.lang);
 
     if (config.platform === 'gitlab') {
       const apiUrl = getGitLabApiUrl(remoteUrl);
       const projectId = await getProjectId(token, apiUrl, remoteUrl);
-      const mr = await createMR(token, apiUrl, projectId, from, to, title, description);
+      const mr = await createMR(token, apiUrl, projectId, from, to, title, finalDesc);
       json(res, 200, { ok: true, url: mr.web_url, id: mr.iid });
     } else {
       const { owner, repo } = parseGitHubRemote(remoteUrl);
-      const pr = await createPR(token, owner, repo, from, to, title, description);
+      const pr = await createPR(token, owner, repo, from, to, title, finalDesc);
       json(res, 200, { ok: true, url: pr.html_url, id: pr.number });
     }
   } catch (err: any) {
@@ -248,18 +257,116 @@ async function handleApiUpdate(req: IncomingMessage, res: ServerResponse): Promi
 
     const { parseUrl } = await import('../utils/diff-helpers.js');
     const parsed = parseUrl(mrprUrl, config) as ParsedMrPr;
+    const sections = config.templates || ALL_SECTIONS;
+    const finalDesc = description.includes('<!-- SECTION:') ? description : buildSections(description, sections, config.platform === 'gitlab' ? 'mr' : 'pr', config.lang);
 
     if (parsed.platform === 'gitlab') {
       const { getProjectIdByPath } = await import('../api/gitlab.js');
       const projectId = await getProjectIdByPath(token, parsed.apiUrl, parsed.projectPath);
-      await updateMRDescription(token, parsed.apiUrl, projectId, parsed.mrNumber, description);
+      await updateMRDescription(token, parsed.apiUrl, projectId, parsed.mrNumber, finalDesc);
       json(res, 200, { ok: true, url: mrprUrl });
     } else {
-      await updatePRDescription(token, parsed.owner, parsed.repo, parsed.prNumber, description);
+      await updatePRDescription(token, parsed.owner, parsed.repo, parsed.prNumber, finalDesc);
       json(res, 200, { ok: true, url: mrprUrl });
     }
   } catch (err: any) {
     json(res, 500, { ok: false, error: err.message });
+  }
+}
+
+function classifyErrorMsg(msg: string): string {
+  if (msg.includes('Token not configured')) return 'token_missing';
+  if (msg.includes('AI API key not configured')) return 'api_key_missing';
+  if (msg.includes('No changes found')) return 'no_diff';
+  return 'unknown';
+}
+
+async function handleApiGenerateStream(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  try {
+    const body = JSON.parse(await readBody(req));
+    const { from, to, url } = body;
+
+    if (!url && (!from || !to)) {
+      json(res, 400, { ok: false, error: 'Provide "from" and "to" (local mode) or "url" (remote mode).' });
+      return;
+    }
+
+    let config;
+    try {
+      config = loadConfig();
+    } catch {
+      json(res, 400, { ok: false, error: 'No configuration found.' });
+      return;
+    }
+    loadEnvFile();
+
+    const result = await generateCore({ from, to, url }, config);
+    if (!result.ok) {
+      json(res, 400, {
+        ok: false,
+        error: result.cleanError || result.error,
+        errorType: classifyErrorMsg(result.cleanError || result.error),
+      });
+      return;
+    }
+
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    });
+
+    res.write(`data: ${JSON.stringify({ type: 'meta', diff: result.diff, fromBranch: result.fromBranch, toBranch: result.toBranch })}\n\n`);
+
+    if (!result.diff) {
+      res.write(`data: ${JSON.stringify({ type: 'no_diff', message: result.description || 'No changes found.' })}\n\n`);
+      res.end();
+      return;
+    }
+
+    const apiKey = getEnvAiApiKey(config);
+    if (!apiKey) {
+      res.write(`data: ${JSON.stringify({ type: 'error', errorType: 'api_key_missing', error: 'AI_API_KEY not configured.' })}\n\n`);
+      res.end();
+      return;
+    }
+
+    const provider = initProvider(apiKey, config);
+    const type: PromptType = config.platform === 'gitlab' ? 'mr' : 'pr';
+    const sections = config.templates || ALL_SECTIONS;
+    const template = buildTemplate(type, sections, config.lang);
+    const aiSections = sections.filter(s => AI_SECTIONS.includes(s));
+    const humanSections = sections.filter(s => HUMAN_SECTIONS.includes(s));
+    const prompt = buildUserPrompt(type, result.fromBranch, template, config.lang, aiSections, humanSections);
+    const systemMessage = buildSystemMessage(type, config.lang);
+
+    let fullText = '';
+    try {
+      for await (const token of provider.generateStream(prompt, result.diff.slice(0, config.maxDiffChars || 8000), systemMessage)) {
+        fullText += token;
+        res.write(`data: ${JSON.stringify({ type: 'token', text: token })}\n\n`);
+      }
+
+      if (!fullText.trim()) {
+        res.write(`data: ${JSON.stringify({ type: 'error', errorType: 'ai_empty', error: 'AI returned empty response. Try again or check your AI provider.' })}\n\n`);
+        res.end();
+        return;
+      }
+
+      const finalDesc = buildSections(fullText.trim(), sections, type, config.lang);
+      res.write(`data: ${JSON.stringify({ type: 'done', sections: finalDesc, description: fullText.trim().replace(/<!--[\s\S]*?-->/g, '').trim() })}\n\n`);
+      res.end();
+    } catch (err: any) {
+      const status = err.response?.status;
+      const apiErr = err.response?.data?.error;
+      let errMsg = `AI request failed${status ? ` (${status})` : ''}`;
+      if (apiErr?.message) errMsg += `\n  Detail: ${apiErr.message}`;
+      res.write(`data: ${JSON.stringify({ type: 'error', errorType: 'ai_failed', error: errMsg })}\n\n`);
+      res.end();
+    }
+  } catch (err: any) {
+    res.write(`data: ${JSON.stringify({ type: 'error', errorType: 'connection', error: err.message })}\n\n`);
+    res.end();
   }
 }
 
@@ -287,6 +394,8 @@ export async function uiAction(opts: { port?: string }): Promise<void> {
         await handleApiConfig(req, res);
       } else if (path === '/api/generate' && req.method === 'POST') {
         await handleApiGenerate(req, res);
+      } else if (path === '/api/generate-stream' && req.method === 'POST') {
+        await handleApiGenerateStream(req, res);
       } else if (path === '/api/create' && req.method === 'POST') {
         await handleApiCreate(req, res);
       } else if (path === '/api/update' && req.method === 'POST') {

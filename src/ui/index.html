@@ -40,9 +40,8 @@ header > div {
   max-width: 960px; width: 100%; margin: 0 auto; padding: 0 16px;
   display: flex; align-items: center; justify-content: space-between;
 }
-.logo { display: flex; align-items: center; gap: 8px; }
-.logo .m { color: var(--secondary); font-size: 22px; font-weight: 800; }
-.logo .rest { color: #fff; font-size: 20px; font-weight: 700; }
+.logo { color: #fff; font-size: 20px; font-weight: 700; }
+.logo .m { color: var(--secondary); font-size: 22px; font-weight: 800; padding-right: 1px; }
 .config-bar { display: flex; gap: 16px; color: rgba(255,255,255,0.5); font-size: 12px; }
 .config-bar span { display: flex; align-items: center; gap: 4px; }
 
@@ -82,26 +81,6 @@ main { margin-top: 76px; margin-bottom: 100px; flex: 1; max-width: 960px; width:
 .generate-row { display: flex; justify-content: flex-end; margin-top: 20px; }
 
 .section-list { margin-top: 24px; display: flex; flex-direction: column; gap: 8px; }
-.section-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
-.section-card .header {
-  display: flex; align-items: center; justify-content: space-between; padding: 16px 20px;
-  cursor: pointer; border-left: 3px solid transparent;
-  background: linear-gradient(to right, var(--secondary), var(--primary));
-  -webkit-background-clip: text;
-  background-clip: text;
-  transition: background 0.2s;
-}
-.section-card .header:hover { background: var(--surface-low); }
-.section-card .header .left { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 15px; }
-.section-card .header .chevron { transition: transform 0.2s; font-size: 12px; }
-.section-card .header .chevron.open { transform: rotate(180deg); }
-.section-card .body { padding: 0 20px 20px; }
-.section-card .body textarea {
-  width: 100%; min-height: 120px; padding: 12px; border: 1px solid var(--border);
-  border-radius: 6px; resize: vertical; font-size: 13px; line-height: 1.5; transition: box-shadow 0.2s;
-}
-.section-card .body textarea:focus { outline: none; box-shadow: 0 0 0 2px var(--secondary); border-color: transparent; }
-.section-card.collapsed .body { display: none; }
 
 .action-bar {
   position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.95);
@@ -136,6 +115,11 @@ main { margin-top: 76px; margin-bottom: 100px; flex: 1; max-width: 960px; width:
   display: none; background: #fef2f2; border: 1px solid #fecaca; color: var(--error);
   padding: 12px 16px; border-radius: var(--radius); font-size: 14px; margin-top: 16px;overflow: auto;
 }
+.error-banner.warning {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #92400e;
+}
 
 .loader {
   display: none; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3);
@@ -144,6 +128,43 @@ main { margin-top: 76px; margin-bottom: 100px; flex: 1; max-width: 960px; width:
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
 .hidden { display: none !important; }
+
+#streaming-area { margin-top: 24px; }
+
+.diff-preview {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); margin-top: 24px; overflow: hidden; box-shadow: var(--shadow);
+}
+.diff-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 16px; background: var(--surface-low);
+  border-bottom: 1px solid var(--border); font-weight: 600; font-size: 14px;
+}
+.diff-stats { font-size: 12px; color: var(--text-muted); }
+.diff-content {
+  padding: 16px; overflow-x: auto; font-family: 'Courier New', monospace;
+  font-size: 12px; line-height: 1.4; white-space: pre; margin: 0;
+  max-height: 500px; overflow-y: auto;
+}
+.diff-add { color: #059669; }
+.diff-del { color: #dc2626; }
+.diff-hunk { color: var(--primary); font-weight: 600; }
+.diff-meta { color: var(--text-muted); }
+
+.md-preview {
+  padding: 12px; border: 1px solid var(--border); border-radius: 6px;
+  font-size: 13px; line-height: 1.5; min-height: 120px;
+}
+.md-preview h2 { font-size: 16px; margin: 8px 0 4px; }
+.md-preview h3 { font-size: 14px; }
+.md-preview h4 { font-size: 13px; }
+.md-preview code {
+  background: var(--surface-low); padding: 1px 4px; border-radius: 3px; font-size: 12px;
+}
+.md-preview ul { padding-left: 20px; }
+.md-preview li { margin-bottom: 4px; }
+.preview-toggle { cursor: pointer; font-size: 12px; opacity: 0.6; }
+.preview-toggle:hover { opacity: 1; }
 
 @media (max-width: 640px) {
   .form-grid { grid-template-columns: 1fr; }
@@ -157,7 +178,7 @@ main { margin-top: 76px; margin-bottom: 100px; flex: 1; max-width: 960px; width:
 <header>
   <div>
     <div class="logo">
-      <span class="m">m</span><span class="rest">ergist</span>
+      <span class="m">m</span>ergist
     </div>
     <div class="config-bar" id="config-bar">
       <span id="config-platform">—</span>
@@ -212,32 +233,32 @@ main { margin-top: 76px; margin-bottom: 100px; flex: 1; max-width: 960px; width:
     <div class="error-banner" id="error-banner"></div>
   </div>
 
+  <!-- Diff Preview -->
+  <div class="diff-preview hidden" id="diff-preview">
+    <div class="diff-header">
+      <span>📄 Diff Preview</span>
+      <span class="diff-stats" id="diff-stats"></span>
+    </div>
+    <pre class="diff-content" id="diff-content"></pre>
+  </div>
+
   <!-- Sections Preview -->
   <div class="section-list hidden" id="section-list">
-    <div class="section-card" id="card-summary">
-      <div class="header" onclick="toggleCard('card-summary')"><div class="left"><span>📋</span> Summary</div><span class="chevron open">▼</span></div>
-      <div class="body"><textarea id="sec-summary" oninput="autoResize(this)"></textarea></div>
+    <div class="diff-preview" id="description-card">
+      <div class="diff-header">
+        <span>📄 Description</span>
+        <div style="display:flex;gap:8px">
+          <span class="preview-toggle" onclick="togglePreview('description')" title="Preview">👁</span>
+        </div>
+      </div>
+      <textarea rows="30" id="sec-description" oninput="syncPreview('description')" style="width:100%;min-height:500px;padding:16px;border:none;font-family:Courier New,monospace;font-size:13px;resize:vertical;background:var(--surface);color:var(--text)"></textarea>
+      <div class="md-preview hidden" id="preview-description" style="min-height:500px;padding:16px"></div>
     </div>
-    <div class="section-card" id="card-changes">
-      <div class="header" onclick="toggleCard('card-changes')"><div class="left"><span>📋</span> Changes</div><span class="chevron open">▼</span></div>
-      <div class="body"><textarea id="sec-changes" oninput="autoResize(this)"></textarea></div>
-    </div>
-    <div class="section-card" id="card-review">
-      <div class="header" onclick="toggleCard('card-review')"><div class="left"><span>📋</span> AI Review</div><span class="chevron open">▼</span></div>
-      <div class="body"><textarea id="sec-review" oninput="autoResize(this)"></textarea></div>
-    </div>
-    <div class="section-card" id="card-testing">
-      <div class="header" onclick="toggleCard('card-testing')"><div class="left"><span>📋</span> Testing</div><span class="chevron open">▼</span></div>
-      <div class="body"><textarea id="sec-testing" oninput="autoResize(this)"></textarea></div>
-    </div>
-    <div class="section-card" id="card-notes">
-      <div class="header" onclick="toggleCard('card-notes')"><div class="left"><span>📋</span> Notes</div><span class="chevron open">▼</span></div>
-      <div class="body"><textarea id="sec-notes" oninput="autoResize(this)"></textarea></div>
-    </div>
-    <div class="section-card" id="card-references">
-      <div class="header" onclick="toggleCard('card-references')"><div class="left"><span>📋</span> References</div><span class="chevron open">▼</span></div>
-      <div class="body"><textarea id="sec-references" oninput="autoResize(this)"></textarea></div>
-    </div>
+  </div>
+
+  <!-- Streaming Area -->
+  <div id="streaming-area" class="hidden">
+    <textarea id="stream-output" readonly rows="20" style="width:100%;font-family:Courier New,monospace;font-size:13px;resize:none;padding:16px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);min-height:200px"></textarea>
   </div>
 </main>
 
@@ -246,6 +267,7 @@ main { margin-top: 76px; margin-bottom: 100px; flex: 1; max-width: 960px; width:
   <div>
     <div class="mode-badge"><span class="dot"></span><span id="action-mode-label">Local Branches</span></div>
     <div class="buttons">
+      <button class="btn btn-outline hidden" id="btn-copy" onclick="handleCopy()">📋 Copy</button>
       <button class="btn btn-green" id="btn-create" onclick="handleCreate()" disabled>
         <span>Create Draft</span>
       </button>
@@ -261,6 +283,9 @@ main { margin-top: 76px; margin-bottom: 100px; flex: 1; max-width: 960px; width:
 
 <script>
 let configData = null;
+let lastGenerateDiff = '';
+let lastFromBranch = '';
+let lastToBranch = '';
 
 document.addEventListener('DOMContentLoaded', async () => {
   await fetchConfig();
@@ -319,56 +344,110 @@ async function handleGenerate() {
   const label = document.getElementById('gen-label');
   const icon = document.getElementById('gen-icon');
   const loader = document.getElementById('gen-loader');
-  const banner = document.getElementById('error-banner');
   const list = document.getElementById('section-list');
   const bar = document.getElementById('action-bar');
+  const streamingArea = document.getElementById('streaming-area');
+  const streamOutput = document.getElementById('stream-output');
+  const diffPreview = document.getElementById('diff-preview');
 
   btn.disabled = true; label.textContent = 'Generating...'; icon.classList.add('hidden'); loader.style.display = 'inline-block';
   hideError(); list.classList.add('hidden'); bar.classList.remove('show');
+  if (diffPreview) diffPreview.classList.add('hidden');
+  showToast('Generating description...', 'success');
 
   const body = currentMode === 'local'
     ? { from: document.getElementById('branch-from').value.trim(), to: document.getElementById('branch-to').value.trim() }
     : { url: document.getElementById('pr-url').value.trim() };
 
   try {
-    const res = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const data = await res.json();
+    const res = await fetch('/api/generate-stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
 
-    if (!data.ok) {
-      showError(data.error);
-      btn.disabled = false; label.textContent = 'Generate'; icon.classList.remove('hidden'); loader.style.display = 'none';
+    if (!res.ok) {
+      const err = await res.json();
+      showError(err.error, err.errorType);
+      resetGenerateUI();
       return;
     }
 
-    // Populate sections
-    const sections = data.sections || '';
-    const parsed = parseSections(sections);
-    const sectionIds = ['summary', 'changes', 'review', 'testing', 'notes', 'references'];
-    sectionIds.forEach(id => {
-      const ta = document.getElementById('sec-' + id);
-      if (ta) { ta.value = parsed[id] || ''; autoResize(ta); }
-    });
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
 
-    btn.disabled = false; label.textContent = 'Regenerate'; icon.classList.remove('hidden'); loader.style.display = 'none';
-    list.classList.remove('hidden');
-    bar.classList.add('show');
-    showHideActionButtons();
-    list.scrollIntoView({ behavior: 'smooth' });
-    showToast('Description generated!', 'success');
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = JSON.parse(line.slice(6));
+
+        if (data.type === 'meta') {
+          lastGenerateDiff = data.diff || '';
+          lastFromBranch = data.fromBranch || '';
+          lastToBranch = data.toBranch || '';
+          renderDiff(data.diff);
+        } else if (data.type === 'token') {
+          if (streamOutput) {
+            if (streamingArea && streamingArea.classList.contains('hidden')) {
+              streamingArea.classList.remove('hidden');
+              streamOutput.value = '';
+            }
+            streamOutput.value += data.text;
+            streamOutput.scrollTop = streamOutput.scrollHeight;
+          }
+        } else if (data.type === 'done') {
+          lastGenerateDiff = lastGenerateDiff || '';
+          if (streamingArea) streamingArea.classList.add('hidden');
+          populateSectionsAfterStream(data.sections, data.description);
+          showFinalGenerateUI();
+        } else if (data.type === 'no_diff') {
+          showError(data.message, 'no_diff');
+          resetGenerateUI();
+        } else if (data.type === 'error') {
+          showError(data.error, data.errorType);
+          resetGenerateUI();
+        }
+      }
+    }
   } catch (e) {
-    showError('Connection failed. Is the server running?');
-    btn.disabled = false; label.textContent = 'Generate'; icon.classList.remove('hidden'); loader.style.display = 'none';
+    showError('Connection failed', 'connection');
+    resetGenerateUI();
   }
 }
 
-function parseSections(str) {
-  const result = {};
-  const regex = /<!--\s*SECTION:(\w+)\s*-->([\s\S]*?)<!--\s*ENDSECTION:\1\s*-->/g;
-  let match;
-  while ((match = regex.exec(str)) !== null) {
-    result[match[1]] = match[2].trim();
-  }
-  return result;
+function renderDiff(diff) {
+  if (!diff) return;
+  const pre = document.getElementById('diff-content');
+  const stats = document.getElementById('diff-stats');
+  const container = document.getElementById('diff-preview');
+  if (!pre || !container) return;
+
+  const additions = (diff.match(/^\+[^+]/gm) || []).length;
+  const deletions = (diff.match(/^-[^-]/gm) || []).length;
+  stats.textContent = `+${additions} −${deletions}`;
+
+  let html = diff
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .split('\n')
+    .map(line => {
+      if (line.startsWith('+') && !line.startsWith('+++')) return `<span class="diff-add">${line}</span>`;
+      if (line.startsWith('-') && !line.startsWith('---')) return `<span class="diff-del">${line}</span>`;
+      if (line.startsWith('@@')) return `<span class="diff-hunk">${line}</span>`;
+      if (line.startsWith('diff ') || line.startsWith('index ') || line.startsWith('---') || line.startsWith('+++'))
+        return `<span class="diff-meta">${line}</span>`;
+      return line;
+    })
+    .join('\n');
+
+  pre.innerHTML = html;
+  container.classList.remove('hidden');
 }
 
 function rebuildSections() {
@@ -377,6 +456,59 @@ function rebuildSections() {
     const ta = document.getElementById('sec-' + id);
     return '<!-- SECTION:' + id + ' -->\n' + (ta ? ta.value : '') + '\n<!-- ENDSECTION:' + id + ' -->';
   }).join('\n\n');
+}
+
+async function handleCopy() {
+  const text = rebuildSections();
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast('Copied to clipboard!', 'success');
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('Copied to clipboard!', 'success');
+  }
+}
+
+function populateSectionsAfterStream(sections, description) {
+  const ta = document.getElementById('sec-description');
+  const text = description || sections;
+  if (!text || text.trim() === '') {
+    if (ta) { ta.value = 'No changes found between these branches.'; autoResize(ta); }
+    return;
+  }
+  if (ta) { ta.value = text; autoResize(ta); }
+}
+
+function rebuildSections() {
+  const ta = document.getElementById('sec-description');
+  return ta ? ta.value : '';
+}
+
+function showFinalGenerateUI() {
+  document.getElementById('btn-generate').disabled = false;
+  document.getElementById('gen-label').textContent = 'Regenerate';
+  document.getElementById('gen-icon').classList.remove('hidden');
+  document.getElementById('gen-loader').style.display = 'none';
+  document.getElementById('section-list').classList.remove('hidden');
+  document.getElementById('action-bar').classList.add('show');
+  showHideActionButtons();
+  const copyBtn = document.getElementById('btn-copy');
+  if (copyBtn) copyBtn.classList.remove('hidden');
+  document.getElementById('section-list').scrollIntoView({ behavior: 'smooth' });
+  showToast('Description generated!', 'success');
+}
+
+function resetGenerateUI() {
+  document.getElementById('btn-generate').disabled = false;
+  document.getElementById('gen-label').textContent = 'Generate';
+  document.getElementById('gen-icon').classList.remove('hidden');
+  document.getElementById('gen-loader').style.display = 'none';
+  const sa = document.getElementById('streaming-area');
+  if (sa) sa.classList.add('hidden');
 }
 
 function showHideActionButtons() {
@@ -428,13 +560,53 @@ async function performAction(type, body) {
   btn.innerHTML = orig; btn.disabled = false;
 }
 
-function toggleCard(id) {
-  const card = document.getElementById(id);
-  card.classList.toggle('collapsed');
-  card.querySelector('.chevron').classList.toggle('open');
+function autoResize(ta) { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }
+
+let previewMode = {};
+
+function renderMarkdown(text) {
+  let html = text.replace(/<!--\s*(?:SECTION|ENDSECTION):\w+\s*-->/g, '');
+  html = html
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/^#### (.+)$/gm, '<h4>$1</h4>')
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/^- (🔴|🟡|🔵|🟢|✨|🔥|🔧) \*\*(.+?)\*\* —/gm,
+      '<li><span class="badge">$1</span> <strong>$2</strong> —')
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
+    .replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>')
+    .replace(/- \[x\] (.+)/g, '<li><input type="checkbox" checked disabled> $1</li>')
+    .replace(/- \[ \] (.+)/g, '<li><input type="checkbox" disabled> $1</li>')
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/\n/g, '<br>');
+  return '<p>' + html + '</p>';
 }
 
-function autoResize(ta) { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }
+function togglePreview(section) {
+  const ta = document.getElementById('sec-' + section);
+  const preview = document.getElementById('preview-' + section);
+  if (!ta || !preview) return;
+  previewMode[section] = !previewMode[section];
+  if (previewMode[section]) {
+    preview.innerHTML = renderMarkdown(ta.value);
+    ta.classList.add('hidden');
+    preview.classList.remove('hidden');
+  } else {
+    ta.classList.remove('hidden');
+    preview.classList.add('hidden');
+  }
+}
+
+function syncPreview(section) {
+  if (previewMode[section]) {
+    const ta = document.getElementById('sec-' + section);
+    const preview = document.getElementById('preview-' + section);
+    if (ta && preview) preview.innerHTML = renderMarkdown(ta.value);
+  }
+}
 
 function showToast(msg, type) {
   const t = document.getElementById('toast');
@@ -443,9 +615,23 @@ function showToast(msg, type) {
   setTimeout(() => t.classList.remove('show'), 4000);
 }
 
-function showError(msg) {
+function showError(msg, errorType) {
   const b = document.getElementById('error-banner');
-  b.textContent = msg; b.style.display = 'block';
+  const hints = {
+    token_missing: '💡 Set GITLAB_TOKEN or GITHUB_TOKEN in your .env file.',
+    api_key_missing: '💡 Set AI_API_KEY in your .env file.',
+    no_diff: 'ℹ️ No changes found between these branches.',
+    ai_empty: '⚠️ AI returned empty response. Try again or check your provider.',
+    ai_failed: '⚠️ AI provider error. Check your model and API key.',
+    connection: '🔌 Connection failed. Is the server running?',
+  };
+  const hint = hints[errorType] || msg;
+  b.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:flex-start">
+    <span>${hint}</span>
+    <button onclick="hideError()" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--text-muted);padding:0;line-height:1">&times;</button>
+  </div>`;
+  b.className = 'error-banner ' + (errorType === 'no_diff' ? 'warning' : '');
+  b.style.display = 'block';
 }
 
 function hideError() {

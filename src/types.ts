@@ -82,4 +82,5 @@ export interface DiffFile {
 
 export interface AIProviderInterface {
   generate(prompt: string, diff: string, systemMessage?: string): Promise<string>;
+  generateStream(prompt: string, diff: string, systemMessage?: string): AsyncGenerator<string, void, undefined>;
 }
