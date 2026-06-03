@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/solehudin5699/mergist/compare/v1.4.0...v1.5.0) (2026-06-03)
+
+### Features
+
+* **mergist-ui:** add mergist UI ([fde89d2](https://github.com/solehudin5699/mergist/commit/fde89d2ac1c4559b66a9dde800163926e3be6e2e))
+* **ui:** add mergist ui ([1ef5abf](https://github.com/solehudin5699/mergist/commit/1ef5abff5e454657de3996d4a3299eb3a6910a14))
+
 ## [1.4.0](https://github.com/solehudin5699/mergist/compare/v1.3.0...v1.4.0) (2026-05-25)
 
 ### Features

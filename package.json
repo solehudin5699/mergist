@@ -1,6 +1,6 @@
 {
   "name": "mergist",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Generate merge request and pull request descriptions from your git diff.",
   "type": "module",
   "bin": {
