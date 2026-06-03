@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>mergist UI</title>
+<style>
+:root {
+  --primary: #0284c7;
+  --primary-hover: #0369a1;
+  --secondary: #06b6d4;
+  --success: #059669;
+  --error: #dc2626;
+  --header-from: #0f172a;
+  --header-to: #1e293b;
+  --surface: #ffffff;
+  --surface-low: #f8fafc;
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --text-light: #94a3b8;
+  --radius: 8px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.1);
+  font-family: system-ui, -apple-system, sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--surface-low); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+input, textarea, select { font-family: 'Courier New', monospace; font-size: 14px; }
+button { font-family: system-ui, -apple-system, sans-serif; cursor: pointer; }
+a { color: var(--primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+header {
+  background: linear-gradient(135deg, var(--header-from), var(--header-to));
+  position: fixed; top: 0; width: 100%; z-index: 50; height: 60px;
+  display: flex; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+header > div {
+  max-width: 960px; width: 100%; margin: 0 auto; padding: 0 16px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.logo { color: #fff; font-size: 20px; font-weight: 700; }
+.logo .m { color: var(--secondary); font-size: 22px; font-weight: 800; padding-right: 1px; }
+.config-bar { display: flex; gap: 16px; color: rgba(255,255,255,0.5); font-size: 12px; }
+.config-bar span { display: flex; align-items: center; gap: 4px; }
+
+main { margin-top: 76px; margin-bottom: 100px; flex: 1; max-width: 960px; width: 100%; margin-left: auto; margin-right: auto; padding: 0 16px; }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow); }
+
+.mode-toggle { display: flex; gap: 4px; background: var(--surface-low); padding: 4px; border-radius: var(--radius); width: fit-content; }
+.mode-toggle label { padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; color: var(--text-muted); transition: all 0.2s; }
+.mode-toggle input { display: none; }
+.mode-toggle input:checked + span { background: var(--surface); box-shadow: var(--shadow); color: var(--text); font-weight: 500; }
+
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; }
+.form-grid.single { grid-template-columns: 1fr; }
+
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-group label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 500; }
+.form-group input { padding: 12px 16px; border: 1px solid var(--border-strong); border-radius: var(--radius); font-size: 14px; transition: box-shadow 0.2s; background: var(--surface); }
+.form-group input:focus { outline: none; box-shadow: 0 0 0 2px var(--secondary); border-color: transparent; }
+.form-group .error { color: var(--error); font-size: 12px; display: none; }
+.form-group.invalid input { border-color: var(--error); }
+.form-group.invalid .error { display: block; }
+
+.btn {
+  padding: 10px 24px; border-radius: var(--radius); font-size: 14px; font-weight: 600;
+  display: inline-flex; align-items: center; gap: 8px; border: none; transition: all 0.2s;
+}
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
+.btn-green { background: var(--success); color: #fff; }
+.btn-green:hover:not(:disabled) { background: #047857; }
+.btn-outline { background: transparent; border: 1px solid var(--border-strong); color: var(--text); }
+.btn-outline:hover:not(:disabled) { background: var(--surface-low); }
+
+.generate-row { display: flex; justify-content: flex-end; margin-top: 20px; }
+
+.section-list { margin-top: 24px; display: flex; flex-direction: column; gap: 8px; }
+
+.action-bar {
+  position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.95);
+  backdrop-filter: blur(8px); border-top: 1px solid var(--border); padding: 16px 0; z-index: 40;
+  display: none; transform: translateY(100%); transition: transform 0.3s;
+}
+.action-bar.show { display: block; transform: translateY(0); }
+.action-bar > div {
+  max-width: 960px; margin: 0 auto; padding: 0 16px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.action-bar .mode-badge {
+  font-size: 12px; padding: 4px 12px; border-radius: 999px; background: var(--surface-low);
+  border: 1px solid var(--border); display: flex; align-items: center; gap: 6px;
+}
+.action-bar .mode-badge .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); animation: pulse 2s infinite; }
+.action-bar .buttons { display: flex; gap: 8px; }
+
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+.toast {
+  position: fixed; top: 76px; right: 16px; z-index: 60;
+  display: flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: var(--radius);
+  color: #fff; font-size: 14px; font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  transform: translateX(120%); transition: transform 0.3s; border: 1px solid rgba(255,255,255,0.2);
+}
+.toast.show { transform: translateX(0); }
+.toast.success { background: var(--success); }
+.toast.error { background: var(--error); }
+
+.error-banner {
+  display: none; background: #fef2f2; border: 1px solid #fecaca; color: var(--error);
+  padding: 12px 16px; border-radius: var(--radius); font-size: 14px; margin-top: 16px;overflow: auto;
+}
+.error-banner.warning {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #92400e;
+}
+
+.loader {
+  display: none; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3);
+  border-top: 2px solid #fff; border-radius: 50%; animation: spin 1s linear infinite;
+}
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+.hidden { display: none !important; }
+
+#streaming-area { margin-top: 24px; }
+
+.diff-preview {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); margin-top: 24px; overflow: hidden; box-shadow: var(--shadow);
+}
+.diff-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 16px; background: var(--surface-low);
+  border-bottom: 1px solid var(--border); font-weight: 600; font-size: 14px;
+}
+.diff-stats { font-size: 12px; color: var(--text-muted); }
+.diff-content {
+  padding: 16px; overflow-x: auto; font-family: 'Courier New', monospace;
+  font-size: 12px; line-height: 1.4; white-space: pre; margin: 0;
+  max-height: 500px; overflow-y: auto;
+}
+.diff-add { color: #059669; }
+.diff-del { color: #dc2626; }
+.diff-hunk { color: var(--primary); font-weight: 600; }
+.diff-meta { color: var(--text-muted); }
+
+.md-preview {
+  padding: 12px; border: 1px solid var(--border); border-radius: 6px;
+  font-size: 13px; line-height: 1.5; min-height: 120px;
+}
+.md-preview h2 { font-size: 16px; margin: 8px 0 4px; }
+.md-preview h3 { font-size: 14px; }
+.md-preview h4 { font-size: 13px; }
+.md-preview code {
+  background: var(--surface-low); padding: 1px 4px; border-radius: 3px; font-size: 12px;
+}
+.md-preview ul { padding-left: 20px; }
+.md-preview li { margin-bottom: 4px; }
+.preview-toggle { cursor: pointer; font-size: 12px; opacity: 0.6; }
+.preview-toggle:hover { opacity: 1; }
+
+@media (max-width: 640px) {
+  .form-grid { grid-template-columns: 1fr; }
+  .action-bar > div { flex-direction: column; gap: 12px; }
+  .action-bar .buttons { width: 100%; }
+  .action-bar .buttons .btn { flex: 1; justify-content: center; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <div class="logo">
+      <span class="m">m</span>ergist
+    </div>
+    <div class="config-bar" id="config-bar">
+      <span id="config-platform">—</span>
+      <span id="config-lang">—</span>
+      <span id="config-provider">—</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- Input -->
+  <div class="card">
+    <div class="mode-toggle">
+      <label><input type="radio" name="mode" value="local" checked onchange="toggleMode('local')"><span>Local Branches</span></label>
+      <label><input type="radio" name="mode" value="url" onchange="toggleMode('url')"><span>URL</span></label>
+    </div>
+
+    <div id="mode-local">
+      <div class="form-grid">
+        <div class="form-group" id="fg-from">
+          <label>From Branch</label>
+          <input type="text" id="branch-from" list="branch-list" placeholder="feature/auth-flow" oninput="validateForm()">
+          <datalist id="branch-list"></datalist>
+          <span class="error">Required</span>
+        </div>
+        <div class="form-group" id="fg-to">
+          <label>To Branch</label>
+          <input type="text" id="branch-to" list="branch-list" placeholder="main" oninput="validateForm()">
+          <span class="error">Required</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="mode-url" class="hidden">
+      <div class="form-grid single">
+        <div class="form-group" id="fg-url">
+          <label>MR/PR URL</label>
+          <input type="text" id="pr-url" placeholder="https://github.com/org/repo/pull/123" oninput="validateForm()">
+          <span class="error">Enter a valid https URL</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="generate-row">
+      <button class="btn btn-primary" id="btn-generate" onclick="handleGenerate()" disabled>
+        <span id="gen-label">Generate</span>
+        <span id="gen-icon">→</span>
+        <span class="loader" id="gen-loader"></span>
+      </button>
+    </div>
+
+    <div class="error-banner" id="error-banner"></div>
+  </div>
+
+  <!-- Diff Preview -->
+  <div class="diff-preview hidden" id="diff-preview">
+    <div class="diff-header">
+      <span>📄 Diff Preview</span>
+      <span class="diff-stats" id="diff-stats"></span>
+    </div>
+    <pre class="diff-content" id="diff-content"></pre>
+  </div>
+
+  <!-- Sections Preview -->
+  <div class="section-list hidden" id="section-list">
+    <div class="diff-preview" id="description-card">
+      <div class="diff-header">
+        <span>📄 Description</span>
+        <div style="display:flex;gap:8px">
+          <span class="preview-toggle" onclick="togglePreview('description')" title="Preview">👁</span>
+        </div>
+      </div>
+      <textarea rows="30" id="sec-description" oninput="syncPreview('description')" style="width:100%;min-height:500px;padding:16px;border:none;font-family:Courier New,monospace;font-size:13px;resize:vertical;background:var(--surface);color:var(--text)"></textarea>
+      <div class="md-preview hidden" id="preview-description" style="min-height:500px;padding:16px"></div>
+    </div>
+  </div>
+
+  <!-- Streaming Area -->
+  <div id="streaming-area" class="hidden">
+    <textarea id="stream-output" readonly rows="20" style="width:100%;font-family:Courier New,monospace;font-size:13px;resize:none;padding:16px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);min-height:200px"></textarea>
+  </div>
+</main>
+
+<!-- Action bar -->
+<div class="action-bar" id="action-bar">
+  <div>
+    <div class="mode-badge"><span class="dot"></span><span id="action-mode-label">Local Branches</span></div>
+    <div class="buttons">
+      <button class="btn btn-outline hidden" id="btn-copy" onclick="handleCopy()">📋 Copy</button>
+      <button class="btn btn-green" id="btn-create" onclick="handleCreate()" disabled>
+        <span>Create Draft</span>
+      </button>
+      <button class="btn btn-primary" id="btn-update" onclick="handleUpdate()" disabled>
+        <span>Update MR/PR</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"><span id="toast-icon">✓</span><span id="toast-msg"></span></div>
+
+<script>
+let configData = null;
+let lastGenerateDiff = '';
+let lastFromBranch = '';
+let lastToBranch = '';
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await fetchConfig();
+  toggleMode('local');
+});
+
+async function fetchConfig() {
+  try {
+    const res = await fetch('/api/config');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    configData = await res.json();
+    document.getElementById('config-platform').textContent = configData.platform || '—';
+    document.getElementById('config-lang').textContent = configData.lang || '—';
+    document.getElementById('config-provider').textContent = configData.aiProvider || '—';
+
+    // Populate branch datalist
+    const list = document.getElementById('branch-list');
+    if (configData.branches && configData.branches.length) {
+      list.innerHTML = configData.branches.map(b => `<option value="${b}">`).join('');
+    }
+  } catch (e) {
+    document.getElementById('config-platform').textContent = '⚠ No config';
+    document.getElementById('config-lang').textContent = '—';
+    document.getElementById('config-provider').textContent = '—';
+    showToast('No configuration found. Run mergist init first.', 'error');
+  }
+}
+
+let currentMode = 'local';
+function toggleMode(mode) {
+  currentMode = mode;
+  document.getElementById('mode-local').classList.toggle('hidden', mode !== 'local');
+  document.getElementById('mode-url').classList.toggle('hidden', mode !== 'url');
+  document.getElementById('action-mode-label').textContent = mode === 'local' ? 'Local Branches' : 'URL';
+  showHideActionButtons();
+  hideError();
+}
+
+function validateForm() {
+  if (currentMode === 'local') {
+    const from = document.getElementById('branch-from').value.trim();
+    const to = document.getElementById('branch-to').value.trim();
+    document.getElementById('fg-from').classList.toggle('invalid', !from);
+    document.getElementById('fg-to').classList.toggle('invalid', !to);
+    document.getElementById('btn-generate').disabled = !from || !to;
+  } else {
+    const url = document.getElementById('pr-url').value.trim();
+    const valid = url.startsWith('https://');
+    document.getElementById('fg-url').classList.toggle('invalid', url.length > 0 && !valid);
+    document.getElementById('btn-generate').disabled = !url || !valid;
+  }
+}
+
+async function handleGenerate() {
+  const btn = document.getElementById('btn-generate');
+  const label = document.getElementById('gen-label');
+  const icon = document.getElementById('gen-icon');
+  const loader = document.getElementById('gen-loader');
+  const list = document.getElementById('section-list');
+  const bar = document.getElementById('action-bar');
+  const streamingArea = document.getElementById('streaming-area');
+  const streamOutput = document.getElementById('stream-output');
+  const diffPreview = document.getElementById('diff-preview');
+
+  btn.disabled = true; label.textContent = 'Generating...'; icon.classList.add('hidden'); loader.style.display = 'inline-block';
+  hideError(); list.classList.add('hidden'); bar.classList.remove('show');
+  if (diffPreview) diffPreview.classList.add('hidden');
+  showToast('Generating description...', 'success');
+
+  const body = currentMode === 'local'
+    ? { from: document.getElementById('branch-from').value.trim(), to: document.getElementById('branch-to').value.trim() }
+    : { url: document.getElementById('pr-url').value.trim() };
+
+  try {
+    const res = await fetch('/api/generate-stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      showError(err.error, err.errorType);
+      resetGenerateUI();
+      return;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = JSON.parse(line.slice(6));
+
+        if (data.type === 'meta') {
+          lastGenerateDiff = data.diff || '';
+          lastFromBranch = data.fromBranch || '';
+          lastToBranch = data.toBranch || '';
+          renderDiff(data.diff);
+        } else if (data.type === 'token') {
+          if (streamOutput) {
+            if (streamingArea && streamingArea.classList.contains('hidden')) {
+              streamingArea.classList.remove('hidden');
+              streamOutput.value = '';
+            }
+            streamOutput.value += data.text;
+            streamOutput.scrollTop = streamOutput.scrollHeight;
+          }
+        } else if (data.type === 'done') {
+          lastGenerateDiff = lastGenerateDiff || '';
+          if (streamingArea) streamingArea.classList.add('hidden');
+          populateSectionsAfterStream(data.sections, data.description);
+          showFinalGenerateUI();
+        } else if (data.type === 'no_diff') {
+          showError(data.message, 'no_diff');
+          resetGenerateUI();
+        } else if (data.type === 'error') {
+          showError(data.error, data.errorType);
+          resetGenerateUI();
+        }
+      }
+    }
+  } catch (e) {
+    showError('Connection failed', 'connection');
+    resetGenerateUI();
+  }
+}
+
+function renderDiff(diff) {
+  if (!diff) return;
+  const pre = document.getElementById('diff-content');
+  const stats = document.getElementById('diff-stats');
+  const container = document.getElementById('diff-preview');
+  if (!pre || !container) return;
+
+  const additions = (diff.match(/^\+[^+]/gm) || []).length;
+  const deletions = (diff.match(/^-[^-]/gm) || []).length;
+  stats.textContent = `+${additions} −${deletions}`;
+
+  let html = diff
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .split('\n')
+    .map(line => {
+      if (line.startsWith('+') && !line.startsWith('+++')) return `<span class="diff-add">${line}</span>`;
+      if (line.startsWith('-') && !line.startsWith('---')) return `<span class="diff-del">${line}</span>`;
+      if (line.startsWith('@@')) return `<span class="diff-hunk">${line}</span>`;
+      if (line.startsWith('diff ') || line.startsWith('index ') || line.startsWith('---') || line.startsWith('+++'))
+        return `<span class="diff-meta">${line}</span>`;
+      return line;
+    })
+    .join('\n');
+
+  pre.innerHTML = html;
+  container.classList.remove('hidden');
+}
+
+function rebuildSections() {
+  const sectionIds = ['summary', 'changes', 'review', 'testing', 'notes', 'references'];
+  return sectionIds.map(id => {
+    const ta = document.getElementById('sec-' + id);
+    return '<!-- SECTION:' + id + ' -->\n' + (ta ? ta.value : '') + '\n<!-- ENDSECTION:' + id + ' -->';
+  }).join('\n\n');
+}
+
+async function handleCopy() {
+  const text = rebuildSections();
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast('Copied to clipboard!', 'success');
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('Copied to clipboard!', 'success');
+  }
+}
+
+function populateSectionsAfterStream(sections, description) {
+  const ta = document.getElementById('sec-description');
+  const text = description || sections;
+  if (!text || text.trim() === '') {
+    if (ta) { ta.value = 'No changes found between these branches.'; autoResize(ta); }
+    return;
+  }
+  if (ta) { ta.value = text; autoResize(ta); }
+}
+
+function rebuildSections() {
+  const ta = document.getElementById('sec-description');
+  return ta ? ta.value : '';
+}
+
+function showFinalGenerateUI() {
+  document.getElementById('btn-generate').disabled = false;
+  document.getElementById('gen-label').textContent = 'Regenerate';
+  document.getElementById('gen-icon').classList.remove('hidden');
+  document.getElementById('gen-loader').style.display = 'none';
+  document.getElementById('section-list').classList.remove('hidden');
+  document.getElementById('action-bar').classList.add('show');
+  showHideActionButtons();
+  const copyBtn = document.getElementById('btn-copy');
+  if (copyBtn) copyBtn.classList.remove('hidden');
+  document.getElementById('section-list').scrollIntoView({ behavior: 'smooth' });
+  showToast('Description generated!', 'success');
+}
+
+function resetGenerateUI() {
+  document.getElementById('btn-generate').disabled = false;
+  document.getElementById('gen-label').textContent = 'Generate';
+  document.getElementById('gen-icon').classList.remove('hidden');
+  document.getElementById('gen-loader').style.display = 'none';
+  const sa = document.getElementById('streaming-area');
+  if (sa) sa.classList.add('hidden');
+}
+
+function showHideActionButtons() {
+  const hasToken = configData && configData.hasToken;
+  const btnCreate = document.getElementById('btn-create');
+  const btnUpdate = document.getElementById('btn-update');
+  const hasSections = !document.getElementById('section-list').classList.contains('hidden');
+
+  btnCreate.disabled = !hasSections;
+  btnUpdate.disabled = !hasSections;
+
+  if (!hasToken) {
+    btnCreate.title = 'Set GITLAB_TOKEN or GITHUB_TOKEN in .env';
+    btnUpdate.title = 'Set GITLAB_TOKEN or GITHUB_TOKEN in .env';
+  } else {
+    btnCreate.title = '';
+    btnUpdate.title = '';
+  }
+
+  btnCreate.classList.toggle('hidden', currentMode !== 'local' || !hasToken);
+  btnUpdate.classList.toggle('hidden', currentMode !== 'url' || !hasToken);
+}
+
+async function handleCreate() {
+  const from = document.getElementById('branch-from').value.trim();
+  const to = document.getElementById('branch-to').value.trim();
+  if (!from || !to) return;
+  await performAction('create', { from, to, description: rebuildSections() });
+}
+
+async function handleUpdate() {
+  const url = document.getElementById('pr-url').value.trim();
+  if (!url) return;
+  await performAction('update', { url, description: rebuildSections() });
+}
+
+async function performAction(type, body) {
+  const btn = type === 'create' ? document.getElementById('btn-create') : document.getElementById('btn-update');
+  btn.disabled = true; const orig = btn.innerHTML; btn.innerHTML = 'Processing...';
+
+  try {
+    const res = await fetch('/api/' + type, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await res.json();
+    if (!data.ok) { showToast(data.error || 'Failed', 'error'); btn.innerHTML = orig; btn.disabled = false; return; }
+    showToast(data.url ? (type === 'create' ? 'Draft created' : 'Description updated') + ': ' + data.url : (type === 'create' ? 'Draft created!' : 'Description updated!'), 'success');
+  } catch (e) {
+    showToast('Connection failed', 'error');
+  }
+  btn.innerHTML = orig; btn.disabled = false;
+}
+
+function autoResize(ta) { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }
+
+let previewMode = {};
+
+function renderMarkdown(text) {
+  let html = text.replace(/<!--\s*(?:SECTION|ENDSECTION):\w+\s*-->/g, '');
+  html = html
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/^#### (.+)$/gm, '<h4>$1</h4>')
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/^- (🔴|🟡|🔵|🟢|✨|🔥|🔧) \*\*(.+?)\*\* —/gm,
+      '<li><span class="badge">$1</span> <strong>$2</strong> —')
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
+    .replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>')
+    .replace(/- \[x\] (.+)/g, '<li><input type="checkbox" checked disabled> $1</li>')
+    .replace(/- \[ \] (.+)/g, '<li><input type="checkbox" disabled> $1</li>')
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/\n/g, '<br>');
+  return '<p>' + html + '</p>';
+}
+
+function togglePreview(section) {
+  const ta = document.getElementById('sec-' + section);
+  const preview = document.getElementById('preview-' + section);
+  if (!ta || !preview) return;
+  previewMode[section] = !previewMode[section];
+  if (previewMode[section]) {
+    preview.innerHTML = renderMarkdown(ta.value);
+    ta.classList.add('hidden');
+    preview.classList.remove('hidden');
+  } else {
+    ta.classList.remove('hidden');
+    preview.classList.add('hidden');
+  }
+}
+
+function syncPreview(section) {
+  if (previewMode[section]) {
+    const ta = document.getElementById('sec-' + section);
+    const preview = document.getElementById('preview-' + section);
+    if (ta && preview) preview.innerHTML = renderMarkdown(ta.value);
+  }
+}
+
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  document.getElementById('toast-msg').textContent = msg;
+  t.className = 'toast ' + type + ' show';
+  setTimeout(() => t.classList.remove('show'), 4000);
+}
+
+function showError(msg, errorType) {
+  const b = document.getElementById('error-banner');
+  const hints = {
+    token_missing: '💡 Set GITLAB_TOKEN or GITHUB_TOKEN in your .env file.',
+    api_key_missing: '💡 Set AI_API_KEY in your .env file.',
+    no_diff: 'ℹ️ No changes found between these branches.',
+    ai_empty: '⚠️ AI returned empty response. Try again or check your provider.',
+    ai_failed: '⚠️ AI provider error. Check your model and API key.',
+    connection: '🔌 Connection failed. Is the server running?',
+  };
+  const hint = hints[errorType] || msg;
+  b.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:flex-start">
+    <span>${hint}</span>
+    <button onclick="hideError()" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--text-muted);padding:0;line-height:1">&times;</button>
+  </div>`;
+  b.className = 'error-banner ' + (errorType === 'no_diff' ? 'warning' : '');
+  b.style.display = 'block';
+}
+
+function hideError() {
+  document.getElementById('error-banner').style.display = 'none';
+}
+</script>
+</body>
+</html>

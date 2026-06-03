@@ -57,4 +57,39 @@ export class OpenAIProvider implements AIProviderInterface {
 
     return response.data.choices[0]?.message?.content?.trim() || '';
   }
+
+  async *generateStream(prompt: string, diff: string, systemMessage?: string): AsyncGenerator<string> {
+    const response = await axios.post(
+      `${this.baseUrl}/chat/completions`,
+      {
+        model: this.model,
+        max_tokens: this.maxTokens,
+        stream: true,
+        messages: [
+          { role: 'system', content: systemMessage || 'You are an AI assistant that helps developers fill MR/PR descriptions.' },
+          { role: 'user', content: `${prompt}\n\nGIT DIFF:\n${diff}` },
+        ],
+      },
+      {
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey}` },
+        responseType: 'stream',
+      }
+    );
+
+    const stream = response.data;
+    let buffer = '';
+    for await (const chunk of stream) {
+      buffer += chunk.toString();
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        if (line === 'data: [DONE]') return;
+        try {
+          const content = JSON.parse(line.slice(6)).choices?.[0]?.delta?.content;
+          if (content) yield content;
+        } catch {}
+      }
+    }
+  }
 }

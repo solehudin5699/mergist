@@ -16,7 +16,11 @@ import { createPR, parseGitHubRemote, getPRInfo, getPRFiles, updatePRDescription
 import { ParsedMrPr } from '../utils/url-parser.js';
 import { validateArgs, parseUrl, formatGitLabDiff, formatGitHubDiff, buildSections, titleFromBranch } from '../utils/diff-helpers.js';
 
-function loadEnvFile(path = '.env') {
+function stripAnsi(s: string): string {
+  return s.replace(/\x1b\[[0-9;]*m/g, '');
+}
+
+export function loadEnvFile(path = '.env') {
   try {
     const content = readFileSync(resolve(process.cwd(), path), 'utf-8');
     for (const line of content.split('\n')) {
@@ -74,7 +78,7 @@ async function getAiApiKey(config: Config): Promise<string | null> {
   return key;
 }
 
-function initProvider(apiKey: string, config: Config): OpenAIProvider | AnthropicProvider {
+export function initProvider(apiKey: string, config: Config): OpenAIProvider | AnthropicProvider {
   const providerKey = config.aiProvider || 'openai';
   const providerCfg = config.providers[providerKey];
   const model = providerCfg?.model || PROVIDER_PRESETS[providerKey]?.defaultModel || 'gpt-4o';
@@ -149,34 +153,6 @@ function fetchLocalDiff(from: string, to: string): string {
     } catch {
       throw new Error(`Failed to diff "${from}" vs "${to}".`);
     }
-  }
-}
-
-async function generateWithSpinner(
-  provider: OpenAIProvider | AnthropicProvider,
-  prompt: string,
-  diff: string,
-  maxDiffChars: number,
-  systemMessage: string,
-): Promise<string> {
-  const anim = startBreathing('Generating...');
-  try {
-    const description = await provider.generate(prompt, diff.slice(0, maxDiffChars || 8000), systemMessage);
-    anim.stop('Done');
-    console.log('');
-    if (!description.trim()) {
-      anim.stop('Failed');
-      throw new Error('AI returned empty response. Try again or check your AI provider.');
-    }
-    return description;
-  } catch (err: any) {
-    anim.stop('Failed');
-    if (err.message?.startsWith('AI returned empty')) throw err;
-    const status = err.response?.status;
-    const apiErr = err.response?.data?.error;
-    let msg = `AI request failed${status ? ` (${c.yellow(String(status))})` : ''}`;
-    if (apiErr?.message) msg += `\n  ${c.cyan('API:')} ${apiErr.message}`;
-    throw new Error(msg);
   }
 }
 
@@ -290,6 +266,116 @@ async function handleCreateDraft(
   }
 }
 
+function getEnvToken(config: Config): string | null {
+  const envKey = config.platform === 'gitlab' ? 'GITLAB_TOKEN' : 'GITHUB_TOKEN';
+  return process.env[envKey] || null;
+}
+
+export function getEnvAiApiKey(config: Config): string | null {
+  const providerKey = config.aiProvider || 'openai';
+  const providerCfg = config.providers[providerKey];
+  const envKey = providerCfg?.apiKey?.replace(/^env:/, '') || 'AI_API_KEY';
+  return process.env[envKey] || null;
+}
+
+export async function generateCore(
+  opts: { from?: string; to?: string; url?: string },
+  config: Config,
+  token?: string,
+  provider?: OpenAIProvider | AnthropicProvider,
+  preFetched?: { diff: string; fromBranch: string; toBranch: string; parsed?: ParsedMrPr },
+): Promise<
+  { ok: true; description: string; sections: string; diff: string; fromBranch: string; toBranch: string; parsed?: ParsedMrPr }
+  | { ok: false; error: string; cleanError?: string }
+> {
+  let diff: string;
+  let fromBranch: string;
+  let toBranch: string;
+  let parsed: ParsedMrPr | undefined;
+
+  if (preFetched) {
+    diff = preFetched.diff;
+    fromBranch = preFetched.fromBranch;
+    toBranch = preFetched.toBranch;
+    parsed = preFetched.parsed;
+  } else if (opts.url) {
+    try {
+      parsed = parseUrl(opts.url, config);
+    } catch (err: any) {
+      return { ok: false, error: err.message, cleanError: err.message };
+    }
+
+    const platformToken = token || getEnvToken(config);
+    if (!platformToken) {
+      return { ok: false, error: 'Token not configured. Set GITLAB_TOKEN or GITHUB_TOKEN in .env', cleanError: 'Token not configured. Set GITLAB_TOKEN or GITHUB_TOKEN in .env' };
+    }
+
+    try {
+      ({ diff, fromBranch, toBranch } = await fetchUrlDiff(parsed, platformToken));
+    } catch (err: any) {
+      return { ok: false, error: err.message, cleanError: stripAnsi(err.message) };
+    }
+  } else {
+    fromBranch = opts.from!;
+    toBranch = opts.to!;
+
+    try {
+      diff = fetchLocalDiff(fromBranch, toBranch);
+    } catch (err: any) {
+      return { ok: false, error: err.message, cleanError: err.message };
+    }
+  }
+
+  if (!diff) {
+    const msg = opts.url
+      ? 'No changes found in this MR/PR.'
+      : `No diff between "${fromBranch}" and "${toBranch}".`;
+    return { ok: true, description: msg, sections: '', diff: '', fromBranch, toBranch, parsed };
+  }
+
+  if (!provider) {
+    const apiKey = getEnvAiApiKey(config);
+    if (!apiKey) return { ok: false, error: 'AI API key not configured. Set AI_API_KEY in .env', cleanError: 'AI API key not configured. Set AI_API_KEY in .env' };
+    provider = initProvider(apiKey, config);
+  }
+
+  const type: PromptType = config.platform === 'gitlab' ? 'mr' : 'pr';
+  const sections = config.templates || ALL_SECTIONS;
+  const template = buildTemplate(type, sections, config.lang);
+  const aiSections = sections.filter(s => AI_SECTIONS.includes(s));
+  const humanSections = sections.filter(s => HUMAN_SECTIONS.includes(s));
+  const prompt = buildUserPrompt(type, fromBranch, template, config.lang, aiSections, humanSections);
+  const systemMessage = buildSystemMessage(type, config.lang);
+
+  let description: string;
+  try {
+    description = await provider.generate(prompt, diff.slice(0, config.maxDiffChars || 8000), systemMessage);
+    if (!description.trim()) {
+      return { ok: false, error: 'AI returned empty response. Try again or check your AI provider.', cleanError: 'AI returned empty response. Try again or check your AI provider.' };
+    }
+  } catch (err: any) {
+    const status = err.response?.status;
+    const apiErr = err.response?.data?.error;
+    let errMsg = `AI request failed${status ? ` (${c.yellow(String(status))})` : ''}`;
+    if (apiErr?.message) errMsg += `\n  ${c.cyan('Detail:')} ${apiErr.message}`;
+    let cleanMsg = `AI request failed${status ? ` (${status})` : ''}`;
+    if (apiErr?.message) cleanMsg += `\n  Detail: ${apiErr.message}`;
+    return { ok: false, error: errMsg, cleanError: cleanMsg };
+  }
+
+  const finalDesc = buildSections(description, sections, type, config.lang);
+
+  return {
+    ok: true,
+    description,
+    sections: finalDesc,
+    diff,
+    fromBranch,
+    toBranch,
+    parsed,
+  };
+}
+
 export async function diffAction(opts: { from?: string; to?: string; url?: string }): Promise<void> {
   if (!existsSync(getConfigPath())) {
     console.error('No configuration found. Run `mergist init` first.');
@@ -306,17 +392,21 @@ export async function diffAction(opts: { from?: string; to?: string; url?: strin
     process.exit(1);
   }
 
+  let token: string | null | undefined;
   let diff: string;
   let fromBranch: string;
   let toBranch: string;
   let parsed: ParsedMrPr | undefined;
 
   if (opts.url) {
-    parsed = parseUrl(opts.url, config);
-
-    const token = await getPlatformToken(config);
+    try {
+      parsed = parseUrl(opts.url, config);
+    } catch (err: any) {
+      console.error(`${c.red('Error:')} ${err.message}`);
+      process.exit(1);
+    }
+    token = await getPlatformToken(config);
     if (!token) process.exit(0);
-
     try {
       ({ diff, fromBranch, toBranch } = await fetchUrlDiff(parsed, token));
     } catch (err: any) {
@@ -326,7 +416,6 @@ export async function diffAction(opts: { from?: string; to?: string; url?: strin
   } else {
     fromBranch = opts.from!;
     toBranch = opts.to!;
-
     try {
       diff = fetchLocalDiff(fromBranch, toBranch);
     } catch (err: any) {
@@ -345,35 +434,35 @@ export async function diffAction(opts: { from?: string; to?: string; url?: strin
 
   const apiKey = await getAiApiKey(config);
   if (!apiKey) process.exit(0);
+  const aiProvider = initProvider(apiKey, config);
 
-  const provider = initProvider(apiKey, config);
-  const type: PromptType = config.platform === 'gitlab' ? 'mr' : 'pr';
-  const sections = config.templates || ALL_SECTIONS;
-  const template = buildTemplate(type, sections, config.lang);
-  const aiSections = sections.filter(s => AI_SECTIONS.includes(s));
-  const humanSections = sections.filter(s => HUMAN_SECTIONS.includes(s));
-  const prompt = buildUserPrompt(type, fromBranch, template, config.lang, aiSections, humanSections);
-  const systemMessage = buildSystemMessage(type, config.lang);
+  const anim = startBreathing('Generating...');
+  const result = await generateCore(opts, config, token ?? undefined, aiProvider, { diff, fromBranch, toBranch, parsed });
+  anim.stop(result.ok ? 'Done' : 'Failed');
+  console.log('');
 
-  let description: string;
-  try {
-    description = await generateWithSpinner(provider, prompt, diff, config.maxDiffChars, systemMessage);
-  } catch (err: any) {
-    console.error(`${c.red(err.message)}`);
+  if (!result.ok) {
+    const [first, ...rest] = result.error.split('\n');
+    console.error(`${c.red('Error:')} ${first}`);
+    for (const line of rest) console.error(`  ${c.red('│')} ${line}`);
     process.exit(0);
   }
 
-  const finalDesc = buildSections(description, sections, type, config.lang);
-  console.log(colorizeOutput(finalDesc));
+  if (!result.diff) {
+    console.log(result.description);
+    process.exit(0);
+  }
+
+  console.log(colorizeOutput(result.sections));
 
   if (opts.url) {
-    await handleUrlUpdate(parsed!, opts.url, finalDesc, config);
+    await handleUrlUpdate(result.parsed!, opts.url, result.sections, config);
   } else {
-    await handleCreateDraft(fromBranch, toBranch, finalDesc, config);
+    await handleCreateDraft(result.fromBranch, result.toBranch, result.sections, config);
   }
 }
 
-function getPlatformRemote(platform: 'gitlab' | 'github'): string {
+export function getPlatformRemote(platform: 'gitlab' | 'github'): string {
   const remotes = execSync('git remote', { encoding: 'utf-8', stdio: 'pipe' }).trim().split('\n').filter(Boolean);
   const matched: string[] = [];
   for (const name of remotes) {

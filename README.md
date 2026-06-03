@@ -10,7 +10,7 @@ Generate merge request and pull request descriptions from your git diff.
 
 ## Usage
 
-mergist can be used in two ways: **automated in CI** (generates description every MR/PR) or **manually from your terminal** (preview and optionally create a Draft MR/PR).
+mergist can be used in **CI** (generates description every MR/PR) or **manually** (terminal or web UI).
 
 ### CI
 
@@ -43,16 +43,37 @@ mergist can be used in two ways: **automated in CI** (generates description ever
    - Add new token: name `mergist`, role `Developer`, scope **api**
    - Add to `.env` as `GITLAB_TOKEN=glpat-...`
 
-3. **Preview & create draft** (from local branches) — `npx mergist diff -f feature -t main`
+3. **Preview, create draft or update description for MR/PR**
 
-   **or**
+    #### CLI
 
-   **Update existing MR/PR** (from URL) — `npx mergist diff -u <mr/pr-url>`
-   - Displays AI-generated description preview
-   - Optionally create a Draft MR/PR after preview (when using `-f`/`-t`)
-   - Optionally update existing MR/PR description (when using `-u`/`--url`)
-   - Title auto-generated from branch name (for `-f`/`-t` mode)
-   - Tokens not in `.env` prompted interactively
+    ```bash
+    # Compare branches, generate description, and optionally create a Draft MR/PR
+    npx mergist diff -f feature -t main
+
+    # Generate description for existing MR/PR and optionally update description
+    npx mergist diff -u <mr/pr-url>
+    ```
+
+    - Displays AI-generated description preview
+    - Optionally create a Draft MR/PR after preview (when using `-f`/`-t`)
+    - Optionally update existing MR/PR description (when using `-u`/`--url`)
+    - Title auto-generated from branch name (for `-f`/`-t` mode)
+    - Tokens not in `.env` prompted interactively
+
+    #### Web UI
+
+    ```bash
+    npx mergist ui
+    ```
+
+    - Launches browser UI at `http://localhost:3210` (use `-p <port>` to change)
+    - Select from/to branches with autocomplete from local git branches
+    - Click **Generate** — real-time streaming typewriter effect as AI responds
+    - Syntax-highlighted diff preview above the description
+    - Markdown preview toggle (👁) for rendered output
+    - Single editable textarea — no split sections
+    - Copy to clipboard, Create Draft MR/PR, or Update existing MR/PR from the UI
 
 ## Commands
 
@@ -67,6 +88,12 @@ npx mergist generate --platform github
 # Generate description locally and optionally create a Draft MR/PR
 npx mergist diff -f feature -t main
 
+# Generate description for existing MR/PR and optionally update
+npx mergist diff -u <mr/pr-url>
+
+# Launch web UI
+npx mergist ui
+
 # Manage config
 npx mergist config show
 npx mergist config set <key> <value>
@@ -77,6 +104,7 @@ npx mergist config set <key> <value>
 | `init` | Scaffold config, CI pipeline, and templates | — |
 | `generate` | Generate MR/PR description in CI | `-p, --platform <gitlab\|github>` (optional, falls back to config) |
 | `diff` | Generate description from local diff or existing MR/PR URL | `-f, --from <branch>`, `-t, --to <branch>`, `-u, --url <mr/pr-url>` |
+| `ui` | Launch web UI for generating MR/PR descriptions | `-p, --port <port>` (default `3210`) |
 | `config show` | Display current configuration | — |
 | `config get <key>` | Get a specific config value | `platform`, `maxDiffChars`, `maxTokens`, `lang`, `autoUpdate`, `templates`, `ciTargetBranches` |
 | `config set <key> <value>` | Update a config key | e.g., `set lang en`, `set maxDiffChars 10000` |
@@ -118,6 +146,7 @@ After init completes, **detailed platform-specific next steps** are displayed wi
 - **Smart merge** — `autoUpdate` only rewrites AI-generated sections, human-filled sections (notes, references) are preserved on subsequent updates
 - **Standalone script** — optional no-dependency script generated during `init` (for environments without npx)
 - **Branch filter** — limit CI to specific target branches
+- **Web UI** (`mergist ui`) — browser-based editor for MR/PR descriptions
 
 ## Configuration
 

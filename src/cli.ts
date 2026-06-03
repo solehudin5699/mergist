@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import { initAction } from './commands/init.js';
 import { generateAction } from './commands/generate.js';
 import { diffAction } from './commands/diff.js';
+import { uiAction } from './commands/ui.js';
 import { configCommands } from './commands/config.js';
 import { PKG_NAME, PKG_DESCRIPTION, PKG_VERSION } from './constants.js';
 
@@ -30,5 +31,11 @@ program
 .option('-t, --to <branch>', 'Local target branch (required without --url)')
   .option('-u, --url <url>', 'MR/PR URL (required without -f/-t)')
   .action(diffAction);
+
+program
+  .command('ui')
+  .description('Launch web UI for generating MR/PR descriptions')
+  .option('-p, --port <port>', 'HTTP server port', '3210')
+  .action(uiAction);
 
 program.parse();
