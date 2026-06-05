@@ -8,6 +8,12 @@ Generate merge request and pull request descriptions from your git diff.
   <a href="#"><img src="https://img.shields.io/badge/platform-GitLab%20%7C%20GitHub-blue" alt="platform"></a>
 </p>
 
+## Demo
+
+| CI | CLI Diff | Web UI |
+|-----|-----------|--------|
+| [![mergist CI](https://img.youtube.com/vi/pcvdgZL06a8/0.jpg)](https://www.youtube.com/watch?v=pcvdgZL06a8) | [![mergist diff](https://img.youtube.com/vi/oJzqh9cjF1g/0.jpg)](https://www.youtube.com/watch?v=oJzqh9cjF1g) | [![mergist ui](https://img.youtube.com/vi/qhQCKskNi4I/0.jpg)](https://www.youtube.com/watch?v=qhQCKskNi4I) |
+
 ## Usage
 
 mergist can be used in **CI** (generates description every MR/PR) or **manually** (terminal or web UI).
